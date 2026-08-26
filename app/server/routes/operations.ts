@@ -90,11 +90,80 @@ router.get('/quotes', asyncRoute(async (req: AuthenticatedRequest, res) => {
   res.json({ quotes: data ?? [] });
 }));
 
+const documentItems = z.array(z.object({
+  description: z.string().trim().min(2).max(500),
+  quantity: z.number().positive().max(100_000),
+  unit_price_cents: z.number().int().min(0).max(100_000_000),
+  gst_rate: z.union([z.literal(0), z.literal(0.1)]).default(0.1),
+})).min(1).max(50);
+
+function calculateDocument(items: z.infer<typeof documentItems>) {
+  return items.reduce((total, item) => {
+    const lineSubtotal = Math.round(item.quantity * item.unit_price_cents);
+    return { subtotal: total.subtotal + lineSubtotal, gst: total.gst + Math.round(lineSubtotal * item.gst_rate) };
+  }, { subtotal: 0, gst: 0 });
+}
+
+async function verifyDocumentParents(db: ReturnType<typeof createUserClient>, workspaceId: string, customerId: string, jobId?: string | null) {
+  const { data: customer, error: customerError } = await db.from('customers').select('id').eq('workspace_id', workspaceId).eq('id', customerId).is('deleted_at', null).maybeSingle();
+  if (customerError || !customer) return 'CUSTOMER_NOT_FOUND';
+  if (!jobId) return null;
+  const { data: job, error: jobError } = await db.from('jobs').select('id,customer_id').eq('workspace_id', workspaceId).eq('id', jobId).maybeSingle();
+  if (jobError || !job || (job.customer_id && job.customer_id !== customerId)) return 'JOB_NOT_FOUND';
+  return null;
+}
+
+router.post('/quotes', requireRole('owner','admin','manager','staff'), validateBody(z.object({
+  customer_id: z.string().uuid(),
+  job_id: z.string().uuid().nullable().optional(),
+  expires_at: z.string().datetime().nullable().optional(),
+  terms: z.string().trim().max(5000).default(''),
+  notes: z.string().trim().max(5000).default(''),
+  deposit_cents: z.number().int().min(0).max(100_000_000).default(0),
+  items: documentItems,
+})), asyncRoute(async (req: AuthenticatedRequest, res) => {
+  const db = createUserClient(req.auth!.accessToken);
+  const parentError = await verifyDocumentParents(db, req.workspaceId!, req.body.customer_id, req.body.job_id);
+  if (parentError) return res.status(404).json({ error: parentError });
+  const totals = calculateDocument(req.body.items);
+  const totalCents = totals.subtotal + totals.gst;
+  if (req.body.deposit_cents > totalCents) return res.status(400).json({ error: 'DEPOSIT_EXCEEDS_TOTAL' });
+  const { data: quote, error } = await db.from('quotes').insert({ workspace_id:req.workspaceId!, customer_id:req.body.customer_id, job_id:req.body.job_id||null, expires_at:req.body.expires_at||null, terms:req.body.terms, notes:req.body.notes, deposit_cents:req.body.deposit_cents, subtotal_cents:totals.subtotal, gst_cents:totals.gst, total_cents:totalCents, status:'draft' }).select('*').single();
+  if (error) return res.status(400).json({ error:'QUOTE_CREATE_FAILED', message:error.message });
+  const rows=req.body.items.map((item:any,index:number)=>({ ...item, workspace_id:req.workspaceId!, quote_id:quote.id, version:1, sort_order:index }));
+  const { error:itemError }=await db.from('quote_items').insert(rows);
+  if(itemError){await db.from('quotes').delete().eq('workspace_id',req.workspaceId!).eq('id',quote.id);return res.status(400).json({error:'QUOTE_ITEMS_CREATE_FAILED'});}
+  await writeAudit(req,'quote.created','quote',quote.id,{total_cents:totalCents,item_count:rows.length});
+  res.status(201).json({quote});
+}));
+
 router.get('/invoices', asyncRoute(async (req: AuthenticatedRequest, res) => {
   const db = createUserClient(req.auth!.accessToken);
   const { data, error } = await db.from('invoices').select('id,invoice_number,status,total_cents,amount_paid_cents,balance_due_cents,due_at,created_at,customer_id,customers(display_name),job_id').eq('workspace_id', req.workspaceId!).order('created_at', { ascending: false }).limit(300);
   if (error) return res.status(500).json({ error: 'INVOICE_LIST_FAILED' });
   res.json({ invoices: data ?? [] });
+}));
+
+router.post('/invoices', requireRole('owner','admin','manager','staff'), validateBody(z.object({
+  customer_id: z.string().uuid(),
+  job_id: z.string().uuid().nullable().optional(),
+  quote_id: z.string().uuid().nullable().optional(),
+  due_at: z.string().datetime().nullable().optional(),
+  items: documentItems,
+})), asyncRoute(async (req: AuthenticatedRequest, res) => {
+  const db = createUserClient(req.auth!.accessToken);
+  const parentError = await verifyDocumentParents(db, req.workspaceId!, req.body.customer_id, req.body.job_id);
+  if (parentError) return res.status(404).json({ error: parentError });
+  if(req.body.quote_id){const {data:quote}=await db.from('quotes').select('id,customer_id').eq('workspace_id',req.workspaceId!).eq('id',req.body.quote_id).maybeSingle();if(!quote||quote.customer_id!==req.body.customer_id)return res.status(404).json({error:'QUOTE_NOT_FOUND'});}
+  const totals = calculateDocument(req.body.items);
+  const totalCents = totals.subtotal + totals.gst;
+  const { data:invoice,error }=await db.from('invoices').insert({workspace_id:req.workspaceId!,customer_id:req.body.customer_id,job_id:req.body.job_id||null,quote_id:req.body.quote_id||null,due_at:req.body.due_at||null,subtotal_cents:totals.subtotal,gst_cents:totals.gst,total_cents:totalCents,balance_due_cents:totalCents,status:'draft'}).select('*').single();
+  if(error)return res.status(400).json({error:'INVOICE_CREATE_FAILED',message:error.message});
+  const rows=req.body.items.map((item:any,index:number)=>({...item,workspace_id:req.workspaceId!,invoice_id:invoice.id,sort_order:index}));
+  const {error:itemError}=await db.from('invoice_items').insert(rows);
+  if(itemError){await db.from('invoices').delete().eq('workspace_id',req.workspaceId!).eq('id',invoice.id);return res.status(400).json({error:'INVOICE_ITEMS_CREATE_FAILED'});}
+  await writeAudit(req,'invoice.created','invoice',invoice.id,{total_cents:totalCents,item_count:rows.length});
+  res.status(201).json({invoice});
 }));
 
 router.get('/payments', asyncRoute(async (req: AuthenticatedRequest, res) => {
