@@ -23,12 +23,16 @@ function Routes() {
   if(path==='/auth/callback')return <AuthCallbackPage/>;
   if(path==='/forgot-password')return <ForgotPasswordPage/>;
   if(path==='/reset-password')return <ResetPasswordPage/>;
+  if(path==='/payment-complete')return <PaymentOutcome complete/>;
+  if(path==='/payment-cancelled')return <PaymentOutcome complete={false}/>;
   if(path==='/mfa')return <MfaPage/>;
   if(path==='/onboarding')return <OnboardingPage/>;
   if(path==='/app/campaigns/legacy')return <ProtectedLegacy auth={auth}/>;
   if(path.startsWith('/app'))return <AppShell/>;
   return <NotFound/>;
 }
+
+function PaymentOutcome({complete}:{complete:boolean}){return <div className="flex min-h-screen items-center justify-center bg-slate-50 px-5"><div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm"><div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full text-2xl ${complete?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-600'}`}>{complete?'✓':'—'}</div><p className="mt-5 text-sm font-bold uppercase tracking-wider text-indigo-600">Secure Stripe checkout</p><h1 className="mt-2 text-3xl font-black">{complete?'Payment submitted':'Payment cancelled'}</h1><p className="mt-3 text-sm leading-6 text-slate-600">{complete?'Stripe is confirming the payment securely. The business records it only after receiving a signed confirmation from Stripe.':'No payment was recorded by Jobryn. You can return to the original payment link if you still need to pay.'}</p><p className="mt-6 text-xs text-slate-400">Jobryn does not receive or store your card number or security code.</p></div></div>}
 
 function ProtectedLegacy({auth}:{auth:ReturnType<typeof useAuth>}) {
   useEffect(()=>{if(!auth.loading&&!auth.session)navigate('/login',true)},[auth.loading,auth.session]);

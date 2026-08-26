@@ -5,7 +5,7 @@ import { env } from '../env';
 import { asyncRoute, billingRateLimit, validateBody } from '../security';
 import { requireAuth, requireRole, requireSensitiveAuth, requireWorkspace, supabaseAdmin, type AuthenticatedRequest, writeAudit } from '../supabase';
 
-export const stripe = env.STRIPE_SECRET_KEY ? new Stripe(env.STRIPE_SECRET_KEY) : null;
+export const stripe = env.STRIPE_SECRET_KEY ? new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2026-07-29.dahlia' }) : null;
 
 const PLAN_FEATURES: Record<'starter'|'growth'|'operator', Record<string, number | boolean>> = {
   starter: {
@@ -104,19 +104,43 @@ stripeWebhookRouter.post('/webhook', express.raw({ type: 'application/json', lim
   const { data: claim, error: claimError } = await supabaseAdmin.rpc('claim_stripe_webhook_event', {
     target_event_id: event.id,
     target_event_type: event.type,
-    target_payload: event as any,
+    // Keep only replay/debug metadata. The full Stripe payload may contain
+    // customer contact or billing details that Jobryn does not need to retain.
+    target_payload: { id:event.id, type:event.type, created:event.created, livemode:event.livemode, api_version:event.api_version },
   });
   if (claimError) return res.status(500).json({ error: 'STRIPE_EVENT_CLAIM_FAILED' });
   if (claim !== 'claimed') return res.json({ received: true, duplicate: claim === 'duplicate', inProgress: claim === 'in_progress' });
 
   try {
-    if (event.type === 'checkout.session.completed') {
+    if (event.type === 'checkout.session.completed' && (event.data.object as Stripe.Checkout.Session).mode === 'subscription') {
       const session = event.data.object as Stripe.Checkout.Session;
       const workspaceId = session.metadata?.workspace_id || session.client_reference_id;
       const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
       if (!workspaceId || !subscriptionId) throw new Error('CHECKOUT_METADATA_INVALID');
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
       await applySubscription(subscription);
+    }
+
+    if (event.type === 'checkout.session.completed' && (event.data.object as Stripe.Checkout.Session).mode === 'payment') {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const workspaceId = session.metadata?.workspace_id;
+      const invoiceId = session.metadata?.invoice_id;
+      const customerId = session.metadata?.customer_id;
+      const expectedAmount = Number(session.metadata?.amount_cents || 0);
+      const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
+      if (!workspaceId || !invoiceId || !customerId || !paymentIntentId || session.payment_status !== 'paid' || !Number.isSafeInteger(expectedAmount) || expectedAmount <= 0 || session.amount_total !== expectedAmount || session.currency?.toUpperCase() !== 'AUD') {
+        throw new Error('INVOICE_PAYMENT_METADATA_INVALID');
+      }
+      const { error: settlementError } = await supabaseAdmin.rpc('settle_stripe_invoice_payment', {
+        target_workspace: workspaceId,
+        target_invoice: invoiceId,
+        target_customer: customerId,
+        target_provider_payment_id: paymentIntentId,
+        target_amount_cents: expectedAmount,
+        target_currency: 'AUD',
+        target_paid_at: new Date().toISOString(),
+      });
+      if (settlementError) throw new Error(`INVOICE_PAYMENT_SETTLEMENT_FAILED:${settlementError.message}`);
     }
 
     if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
@@ -220,6 +244,7 @@ router.post('/checkout', requireRole('owner','admin'), requireSensitiveAuth, val
     client_reference_id: req.workspaceId!,
     subscription_data: { metadata: { workspace_id: req.workspaceId!, plan } },
     metadata: { workspace_id: req.workspaceId!, plan },
+    integration_identifier: 'jobryn_subs_qkmvztpa',
     allow_promotion_codes: true,
     billing_address_collection: 'auto',
   }, { idempotencyKey: `checkout:${req.workspaceId}:${plan}:${providedKey}` });

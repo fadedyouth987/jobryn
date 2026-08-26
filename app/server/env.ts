@@ -69,7 +69,7 @@ export function assertProductionSecrets() {
   const appUrl = new URL(env.APP_URL);
   if (appUrl.protocol !== 'https:') throw new Error('APP_URL must use HTTPS in production');
   if (!env.SUPABASE_URL.startsWith('https://')) throw new Error('SUPABASE_URL must use HTTPS in production');
-  if (!env.STRIPE_SECRET_KEY.startsWith('sk_')) throw new Error('STRIPE_SECRET_KEY has an invalid format');
+  if (!/^(rk|sk)_(test|live)_/.test(env.STRIPE_SECRET_KEY)) throw new Error('STRIPE_SECRET_KEY must be a restricted or secret Stripe key');
   if (!env.STRIPE_WEBHOOK_SECRET.startsWith('whsec_')) throw new Error('STRIPE_WEBHOOK_SECRET has an invalid format');
   for (const price of [env.STRIPE_PRICE_STARTER, env.STRIPE_PRICE_GROWTH, env.STRIPE_PRICE_OPERATOR]) {
     if (!price.startsWith('price_')) throw new Error('Stripe Price IDs must start with price_');

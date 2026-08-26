@@ -12,6 +12,7 @@ const required = [
   'supabase/migrations/0004_subscription_and_tenant_invariants.sql',
   'supabase/migrations/0005_least_privilege_rbac.sql',
   'supabase/migrations/0006_usage_metering.sql',
+  'supabase/migrations/0007_secure_invoice_payment_settlement.sql',
 ];
 
 for (const file of required) {
@@ -36,6 +37,7 @@ walk(root);
 
 const forbiddenPatterns = [
   [/sk_live_[A-Za-z0-9]+/, 'live Stripe secret'],
+  [/rk_live_[A-Za-z0-9]+/, 'live Stripe restricted key'],
   [/service_role\s*[:=]\s*["'][A-Za-z0-9._-]{20,}/i, 'embedded Supabase service-role token'],
 ];
 for (const file of sourceFiles) {
@@ -46,7 +48,7 @@ for (const file of sourceFiles) {
 }
 
 const billing = fs.readFileSync(path.join(root, 'server/routes/billing.ts'), 'utf8');
-for (const requiredText of ['constructEvent', 'claim_stripe_webhook_event', 'apply_subscription_state']) {
+for (const requiredText of ['constructEvent', 'claim_stripe_webhook_event', 'apply_subscription_state', 'settle_stripe_invoice_payment', "session.payment_status !== 'paid'"]) {
   if (!billing.includes(requiredText)) throw new Error(`Stripe webhook hardening missing: ${requiredText}`);
 }
 

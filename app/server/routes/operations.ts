@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncRoute, validateBody } from '../security';
-import { createUserClient, requireActiveSubscription, requireAuth, requireRole, requireWorkspace, type AuthenticatedRequest, writeAudit } from '../supabase';
+import { env } from '../env';
+import { stripe } from './billing';
+import { createUserClient, requireActiveSubscription, requireAuth, requireRole, requireSensitiveAuth, requireWorkspace, type AuthenticatedRequest, writeAudit } from '../supabase';
 
 const router = Router();
 router.use(requireAuth, requireWorkspace, requireActiveSubscription('booking.core'));
@@ -171,6 +173,36 @@ router.get('/payments', asyncRoute(async (req: AuthenticatedRequest, res) => {
   const { data, error } = await db.from('payments').select('id,amount_cents,currency,status,paid_at,created_at,customer_id,customers(display_name),invoice_id').eq('workspace_id', req.workspaceId!).order('created_at', { ascending: false }).limit(300);
   if (error) return res.status(500).json({ error: 'PAYMENT_LIST_FAILED' });
   res.json({ payments: data ?? [] });
+}));
+
+router.post('/invoices/:id/checkout', requireRole('owner','admin','manager'), requireSensitiveAuth, asyncRoute(async (req: AuthenticatedRequest, res) => {
+  if (!stripe) return res.status(503).json({ error:'STRIPE_NOT_CONFIGURED' });
+  const providedKey=String(req.header('idempotency-key')||'');
+  if(!/^[A-Za-z0-9._:-]{16,128}$/.test(providedKey))return res.status(400).json({error:'VALID_IDEMPOTENCY_KEY_REQUIRED'});
+  const db=createUserClient(req.auth!.accessToken);
+  const {data:invoice,error}=await db.from('invoices').select('id,invoice_number,status,balance_due_cents,customer_id,customers(display_name,email)').eq('workspace_id',req.workspaceId!).eq('id',req.params.id).maybeSingle();
+  if(error||!invoice)return res.status(404).json({error:'INVOICE_NOT_FOUND'});
+  if(!invoice.customer_id)return res.status(409).json({error:'INVOICE_CUSTOMER_REQUIRED'});
+  if(!['draft','sent','viewed','part_paid','overdue'].includes(invoice.status)||Number(invoice.balance_due_cents)<=0)return res.status(409).json({error:'INVOICE_NOT_PAYABLE'});
+  const customer=Array.isArray(invoice.customers)?invoice.customers[0]:invoice.customers;
+  const amount=Number(invoice.balance_due_cents);
+  if(!Number.isSafeInteger(amount)||amount<=0)return res.status(409).json({error:'INVALID_INVOICE_BALANCE'});
+  const session=await stripe.checkout.sessions.create({
+    mode:'payment',
+    line_items:[{price_data:{currency:'aud',product_data:{name:`Jobryn invoice #${invoice.invoice_number}`,description:'Secure invoice payment'},unit_amount:amount},quantity:1}],
+    customer_email:customer?.email||undefined,
+    client_reference_id:invoice.id,
+    metadata:{workspace_id:req.workspaceId!,invoice_id:invoice.id,customer_id:invoice.customer_id,amount_cents:String(amount)},
+    payment_intent_data:{metadata:{workspace_id:req.workspaceId!,invoice_id:invoice.id,customer_id:invoice.customer_id}},
+    success_url:`${env.APP_URL}/payment-complete?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url:`${env.APP_URL}/payment-cancelled`,
+    integration_identifier:'jobryn_pay_fhwktzpn',
+  // A deterministic Stripe key returns the same live session for this invoice
+  // balance, preventing two payment links from charging the same balance.
+  },{idempotencyKey:`invoice-checkout:${req.workspaceId}:${invoice.id}:${amount}`});
+  if(!session.url)return res.status(502).json({error:'STRIPE_CHECKOUT_URL_MISSING'});
+  await writeAudit(req,'invoice.checkout.created','invoice',invoice.id,{amount_cents:amount});
+  res.json({checkoutUrl:session.url,expiresAt:session.expires_at?new Date(session.expires_at*1000).toISOString():null});
 }));
 
 export default router;
