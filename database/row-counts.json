@@ -1,0 +1,24 @@
+{
+  "exported_at": "2026-08-27T00:00:00+09:30",
+  "source": "Hatchable project proj_b34Ch3ZI0BQY",
+  "tables": {
+    "ai_actions": 0,
+    "business_profiles": 1,
+    "conversations": 0,
+    "customers": 0,
+    "invoice_items": 0,
+    "invoices": 0,
+    "jobs": 0,
+    "leads": 0,
+    "messages": 0,
+    "payments": 0,
+    "quote_items": 0,
+    "quotes": 0,
+    "stripe_events": 0,
+    "subscriptions": 1,
+    "users": 2,
+    "workspace_members": 0,
+    "workspaces": 1
+  }
+}
+
