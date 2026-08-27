@@ -9,6 +9,11 @@ const communicationsSource = await readFile(new URL('../server/routes/communicat
 const envSource = await readFile(new URL('../server/env.ts', import.meta.url), 'utf8');
 const packageSource = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { scripts: Record<string, string> };
 const supabaseSource = await readFile(new URL('../server/supabase.ts', import.meta.url), 'utf8');
+const apiSource = await readFile(new URL('../src/lib/api.ts', import.meta.url), 'utf8');
+const appSource = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const trialBackfillMigration = await readFile(new URL('../supabase/migrations/0009_backfill_workspace_trials.sql', import.meta.url), 'utf8');
+const billingRouteSource = await readFile(new URL('../server/routes/billing.ts', import.meta.url), 'utf8');
+const memberAccessMigration = await readFile(new URL('../supabase/migrations/0011_member_subscription_access.sql', import.meta.url), 'utf8');
 
 test('Stripe webhooks verify signatures against the raw body before claiming events', () => {
   assert.match(billingSource, /express\.raw\(\{ type: 'application\/json'/);
@@ -71,4 +76,46 @@ test('subscription and entitlement gates use the authenticated tenant client', (
   const subscriptionGate = supabaseSource.slice(start, end);
   assert.match(subscriptionGate, /createUserClient\(req\.auth\.accessToken\)/);
   assert.doesNotMatch(subscriptionGate, /supabaseAdmin/);
+});
+
+test('expired browser sessions refresh once and then fail closed', () => {
+  assert.match(apiSource, /if \(response\.status === 401\)/);
+  assert.match(apiSource, /supabase\.auth\.refreshSession\(\)/);
+  assert.match(apiSource, /supabase\.auth\.signOut\(\{ scope: 'local' \}\)/);
+  assert.match(apiSource, /SESSION_EXPIRED/);
+});
+
+test('authenticated users cannot remain on login or signup screens', () => {
+  assert.match(appSource, /auth\.session\) navigate\(auth\.workspaceId \? '\/app' : '\/onboarding', true\)/);
+});
+
+test('legacy workspace repair never overwrites existing billing state', () => {
+  assert.match(trialBackfillMigration, /where not exists[\s\S]*public\.subscriptions/i);
+  assert.match(trialBackfillMigration, /where not exists[\s\S]*public\.subscription_entitlements/i);
+  assert.doesNotMatch(trialBackfillMigration, /on conflict[\s\S]*do update/i);
+});
+
+test('creating a Stripe customer preserves an existing trial or subscription state', () => {
+  const start = billingRouteSource.indexOf('if (!customerId)');
+  const end = billingRouteSource.indexOf('const providedKey', start);
+  const customerLink = billingRouteSource.slice(start, end);
+  assert.match(customerLink, /if \(existingSub\)/);
+  assert.match(customerLink, /\.update\(\{[\s\S]*stripe_customer_id: customerId/);
+  assert.doesNotMatch(customerLink.match(/if \(existingSub\)[\s\S]*?\} else \{/)?.[0] || '', /status:/);
+});
+
+test('team subscription gates expose minimal state only after membership verification', () => {
+  assert.match(memberAccessMigration, /private\.is_workspace_member\(target_workspace\)/);
+  assert.match(memberAccessMigration, /returns table\(status[\s\S]*trial_ends_at[\s\S]*grace_period_ends_at/i);
+  assert.doesNotMatch(memberAccessMigration, /stripe_customer_id|stripe_subscription_id/);
+  assert.match(memberAccessMigration, /revoke all[\s\S]*from public, anon/i);
+  assert.match(memberAccessMigration, /grant execute[\s\S]*to authenticated, service_role/i);
+});
+
+test('trusted audit rows are never written with a browser or placeholder key', () => {
+  const start = supabaseSource.indexOf('export async function writeAudit');
+  const auditWriter = supabaseSource.slice(start);
+  assert.match(auditWriter, /!env\.SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(auditWriter, /supabaseAdmin\.from\('audit_logs'\)\.insert/);
+  assert.doesNotMatch(auditWriter, /createUserClient/);
 });

@@ -30,6 +30,9 @@ Apply migrations in order:
 6. `supabase/migrations/0006_usage_metering.sql`
 7. `supabase/migrations/0007_secure_invoice_payment_settlement.sql`
 8. `supabase/migrations/0008_twilio_tenant_routing.sql`
+9. `supabase/migrations/0009_backfill_workspace_trials.sql`
+10. `supabase/migrations/0010_harden_asset_storage.sql`
+11. `supabase/migrations/0011_member_subscription_access.sql`
 
 Use the browser publishable/anon key only in `VITE_*` variables. The service-role key belongs on the server only.
 

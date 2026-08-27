@@ -14,7 +14,7 @@ run Jobryn's API, Stripe webhooks or authentication server.
 4. Copy `app/.env.example` into Hostinger environment settings. Never upload a
    populated `.env` file to GitHub.
 5. Apply `app/supabase/migrations/0001_vantory_core.sql` through
-   `0008_twilio_tenant_routing.sql` in filename order to an empty staging database.
+   `0011_member_subscription_access.sql` in filename order to an empty staging database.
 
 The historical `vantory` migration and storage identifiers are intentionally
 preserved for compatibility; the product displayed to users is Jobryn.
