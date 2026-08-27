@@ -7,6 +7,7 @@ const operationsSource = await readFile(new URL('../server/routes/operations.ts'
 const settlementMigration = await readFile(new URL('../supabase/migrations/0007_secure_invoice_payment_settlement.sql', import.meta.url), 'utf8');
 const communicationsSource = await readFile(new URL('../server/routes/communications.ts', import.meta.url), 'utf8');
 const envSource = await readFile(new URL('../server/env.ts', import.meta.url), 'utf8');
+const packageSource = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { scripts: Record<string, string> };
 
 test('Stripe webhooks verify signatures against the raw body before claiming events', () => {
   assert.match(billingSource, /express\.raw\(\{ type: 'application\/json'/);
@@ -47,4 +48,8 @@ test('local server auth uses the same public Supabase project as the browser wit
   assert.match(envSource, /SUPABASE_ANON_KEY: process\.env\.SUPABASE_ANON_KEY \?\? process\.env\.VITE_SUPABASE_ANON_KEY/);
   assert.match(envSource, /SUPABASE_SERVICE_ROLE_KEY: process\.env\.SUPABASE_SERVICE_ROLE_KEY \?\? ''/);
   assert.doesNotMatch(envSource, /SUPABASE_SERVICE_ROLE_KEY:.*VITE_/);
+});
+
+test('Windows development uses the trusted system certificate store for Supabase HTTPS', () => {
+  assert.match(packageSource.scripts.dev, /node --use-system-ca --import tsx server\.ts/);
 });
