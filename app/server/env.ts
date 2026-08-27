@@ -17,6 +17,9 @@ const raw = {
   STRIPE_PRICE_OPERATOR: process.env.STRIPE_PRICE_OPERATOR ?? '',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? '',
   GEMINI_MODEL: process.env.GEMINI_MODEL ?? 'gemini-3.7-flash',
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ?? '',
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ?? '',
+  TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER ?? '',
   REQUIRE_AAL2_SENSITIVE: process.env.REQUIRE_AAL2_SENSITIVE ?? (process.env.NODE_ENV === 'production' ? 'true' : 'false'),
   REQUIRE_EMAIL_VERIFICATION: process.env.REQUIRE_EMAIL_VERIFICATION ?? (process.env.NODE_ENV === 'production' ? 'true' : 'false'),
 };
@@ -37,6 +40,9 @@ const schema = z.object({
   STRIPE_PRICE_OPERATOR: z.string(),
   GEMINI_API_KEY: z.string(),
   GEMINI_MODEL: z.string().min(3).max(100),
+  TWILIO_ACCOUNT_SID: z.string(),
+  TWILIO_AUTH_TOKEN: z.string(),
+  TWILIO_PHONE_NUMBER: z.string(),
   REQUIRE_AAL2_SENSITIVE: z.enum(['true', 'false']).default('false'),
   REQUIRE_EMAIL_VERIFICATION: z.enum(['true', 'false']).default('false'),
 });

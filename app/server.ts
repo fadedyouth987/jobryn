@@ -13,6 +13,8 @@ import operatorRouter from './server/routes/operator';
 import teamRouter from './server/routes/team';
 import billingRouter, { stripeWebhookRouter } from './server/routes/billing';
 import legacyAiRouter from './server/routes/legacyAi';
+import communicationsRouter, { twilioWebhookRouter } from './server/routes/communications';
+import { twilioConfigured } from './server/providers/twilio';
 
 assertProductionSecrets();
 
@@ -26,6 +28,8 @@ app.use(globalRateLimit);
 
 // Stripe signature verification must see the original raw body.
 app.use('/api/stripe', stripeWebhookRouter);
+// Twilio signs the original form fields, so these routes must run before the global body parsers.
+app.use('/api/twilio', express.urlencoded({ extended: false, limit: '64kb' }), twilioWebhookRouter);
 
 app.use(express.json({ limit: '512kb', strict: true }));
 app.use(express.urlencoded({ extended: false, limit: '64kb' }));
@@ -44,6 +48,7 @@ app.get('/api/health', (_req, res) => {
     databaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
     stripeConfigured: Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET),
     aiConfigured: Boolean(env.GEMINI_API_KEY && env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY'),
+    messagingConfigured: twilioConfigured(),
     timestamp: new Date().toISOString(),
   });
 });
@@ -58,6 +63,7 @@ app.use('/api/intelligence', intelligenceRouter);
 app.use('/api/operator', operatorRouter);
 app.use('/api/team', teamRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/communications', communicationsRouter);
 app.use('/api', legacyAiRouter);
 
 async function startServer() {

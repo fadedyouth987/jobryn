@@ -22,12 +22,14 @@ npm run dev
 
 Apply migrations in order:
 
-1. `supabase/migrations/0001_jobryn_core.sql`
+1. `supabase/migrations/0001_vantory_core.sql` (historical compatibility name)
 2. `supabase/migrations/0002_saas_roles_and_plans.sql`
 3. `supabase/migrations/0003_revenue_os_core.sql`
 4. `supabase/migrations/0004_subscription_and_tenant_invariants.sql`
 5. `supabase/migrations/0005_least_privilege_rbac.sql`
 6. `supabase/migrations/0006_usage_metering.sql`
+7. `supabase/migrations/0007_secure_invoice_payment_settlement.sql`
+8. `supabase/migrations/0008_twilio_tenant_routing.sql`
 
 Use the browser publishable/anon key only in `VITE_*` variables. The service-role key belongs on the server only.
 
@@ -147,7 +149,7 @@ Use a managed secrets store on your host. Do not place secrets in `VITE_*` varia
 Do not call a deployment production-ready until these pass against the real Supabase and Stripe projects:
 
 ```bash
-npm install
+npm ci
 npm run typecheck
 npm run security:check
 npm run build

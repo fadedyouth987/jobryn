@@ -27,7 +27,7 @@ export type AuthenticatedRequest = Request & {
   requestId?: string;
 };
 
-function readAal(token: string): 'aal1' | 'aal2' | null {
+export function readAal(token: string): 'aal1' | 'aal2' | null {
   try {
     const part = token.split('.')[1];
     if (!part) return null;

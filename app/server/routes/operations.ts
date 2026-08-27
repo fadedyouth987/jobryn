@@ -92,14 +92,14 @@ router.get('/quotes', asyncRoute(async (req: AuthenticatedRequest, res) => {
   res.json({ quotes: data ?? [] });
 }));
 
-const documentItems = z.array(z.object({
+export const documentItems = z.array(z.object({
   description: z.string().trim().min(2).max(500),
   quantity: z.number().positive().max(100_000),
   unit_price_cents: z.number().int().min(0).max(100_000_000),
   gst_rate: z.union([z.literal(0), z.literal(0.1)]).default(0.1),
 })).min(1).max(50);
 
-function calculateDocument(items: z.infer<typeof documentItems>) {
+export function calculateDocument(items: z.infer<typeof documentItems>) {
   return items.reduce((total, item) => {
     const lineSubtotal = Math.round(item.quantity * item.unit_price_cents);
     return { subtotal: total.subtotal + lineSubtotal, gst: total.gst + Math.round(lineSubtotal * item.gst_rate) };

@@ -124,7 +124,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             }`}
           >
             <Zap className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-            <span>{currentWorkspace.credits}</span>
+            <span>{currentWorkspace.creditsRemaining}</span>
           </button>
         </div>
       </div>
@@ -317,7 +317,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                   <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                   <span>AI Credits</span>
                 </span>
-                <span className={`font-mono font-extrabold ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>{currentWorkspace.credits}</span>
+                <span className={`font-mono font-extrabold ${isLight ? 'text-amber-700' : 'text-amber-300'}`}>{currentWorkspace.creditsRemaining}</span>
               </div>
 
               {/* Progress Bar */}
@@ -326,7 +326,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               }`}>
                 <div
                   className="bg-gradient-to-r from-amber-500 to-indigo-600 h-full rounded-full transition-all"
-                  style={{ width: `${Math.min(100, (currentWorkspace.credits / 1000) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (currentWorkspace.creditsRemaining / 1000) * 100)}%` }}
                 />
               </div>
 
