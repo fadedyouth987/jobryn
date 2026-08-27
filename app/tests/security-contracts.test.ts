@@ -14,6 +14,8 @@ const appSource = await readFile(new URL('../src/App.tsx', import.meta.url), 'ut
 const trialBackfillMigration = await readFile(new URL('../supabase/migrations/0009_backfill_workspace_trials.sql', import.meta.url), 'utf8');
 const billingRouteSource = await readFile(new URL('../server/routes/billing.ts', import.meta.url), 'utf8');
 const memberAccessMigration = await readFile(new URL('../supabase/migrations/0011_member_subscription_access.sql', import.meta.url), 'utf8');
+const receptionistSource = await readFile(new URL('../server/routes/receptionist.ts', import.meta.url), 'utf8');
+const receptionistMigration = await readFile(new URL('../supabase/migrations/0012_ai_receptionist_configuration.sql', import.meta.url), 'utf8');
 
 test('Stripe webhooks verify signatures against the raw body before claiming events', () => {
   assert.match(billingSource, /express\.raw\(\{ type: 'application\/json'/);
@@ -118,4 +120,18 @@ test('trusted audit rows are never written with a browser or placeholder key', (
   assert.match(auditWriter, /!env\.SUPABASE_SERVICE_ROLE_KEY/);
   assert.match(auditWriter, /supabaseAdmin\.from\('audit_logs'\)\.insert/);
   assert.doesNotMatch(auditWriter, /createUserClient/);
+});
+
+test('AI receptionist stays fail-closed until the signed live conversation engine is ready', () => {
+  assert.match(receptionistSource, /if \(req\.body\.enabled\)/);
+  assert.match(receptionistSource, /RECEPTIONIST_NOT_READY/);
+  assert.match(receptionistSource, /twilioSignatureGuard\('\/api\/twilio\/voice'\)/);
+  assert.match(receptionistSource, /conversationRelay: false/);
+});
+
+test('receptionist configuration is tenant isolated and stores no provider credentials', () => {
+  assert.match(receptionistMigration, /alter table public\.receptionist_profiles enable row level security/i);
+  assert.match(receptionistMigration, /private\.is_workspace_member\(workspace_id\)/i);
+  assert.match(receptionistMigration, /private\.has_workspace_role\(workspace_id/i);
+  assert.doesNotMatch(receptionistMigration, /api_key|auth_token|secret_key/i);
 });

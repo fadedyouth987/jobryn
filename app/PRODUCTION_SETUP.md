@@ -33,6 +33,7 @@ Apply migrations in order:
 9. `supabase/migrations/0009_backfill_workspace_trials.sql`
 10. `supabase/migrations/0010_harden_asset_storage.sql`
 11. `supabase/migrations/0011_member_subscription_access.sql`
+12. `supabase/migrations/0012_ai_receptionist_configuration.sql`
 
 Use the browser publishable/anon key only in `VITE_*` variables. The service-role key belongs on the server only.
 

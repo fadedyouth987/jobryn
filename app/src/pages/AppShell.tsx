@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   BarChart3, Bell, Bot, BriefcaseBusiness, CalendarDays, ChevronDown, CircleDollarSign,
   ContactRound, CreditCard, FileCheck2, FileText, Home, Inbox, KeyRound, LibraryBig,
-  LogOut, Megaphone, Menu, MessageSquareMore, ReceiptText, Settings, ShieldCheck,
+  LogOut, Megaphone, Menu, MessageSquareMore, Phone, ReceiptText, Settings, ShieldCheck,
   Sparkles, Users, Workflow, X, Star, PlugZap
 } from 'lucide-react';
 import { useAuth } from '../app/auth';
@@ -12,7 +12,7 @@ import { apiFetch } from '../lib/api';
 import {
   AnalyticsPage, ApprovalsPage, AutomationsPage, BillingPage, CampaignsPage, CommandCentrePage,
   CustomersPage, DashboardPage, InboxPage, IntegrationsPage, KnowledgePage, LeadsPage,
-  ModulePage, OperationsListPage, OperatorPage, ReviewsPage, SecuritySettingsPage, SettingsPage, TeamPage,
+  ModulePage, OperationsListPage, OperatorPage, ReceptionistPage, ReviewsPage, SecuritySettingsPage, SettingsPage, TeamPage,
 } from './AppPages';
 
 type NavItem = [string, string, React.ComponentType<{ className?: string }>];
@@ -22,7 +22,7 @@ const groups: NavGroup[] = [
   { label:'', items:[
     ['/app','Home',Home],['/app/command','Command Centre',Sparkles],
   ]},
-  { label:'Communications', items:[['/app/inbox','Inbox',Inbox]] },
+  { label:'Communications', items:[['/app/inbox','Inbox',Inbox],['/app/operator/phone','AI Receptionist',Phone]] },
   { label:'Customers', items:[['/app/leads','Leads',BriefcaseBusiness],['/app/customers','Customers',ContactRound]] },
   { label:'Work', items:[['/app/schedule','Schedule',CalendarDays],['/app/jobs','Jobs',FileCheck2]] },
   { label:'Money', items:[['/app/quotes','Quotes',FileText],['/app/invoices','Invoices',ReceiptText],['/app/payments','Payments',CircleDollarSign]] },
@@ -92,7 +92,7 @@ function routePage(path:string) {
   if(path==='/app/billing')return <BillingPage/>;
   if(path==='/app/settings/security')return <SecuritySettingsPage/>;
   if(path==='/app/settings')return <SettingsPage/>;
-  if(path==='/app/operator/phone')return <ModulePage title="AI Phone" eyebrow="Voice receptionist" description="The telephony schema is present, but real Twilio Voice/Media Streams and call-recording consent controls must be wired before this page can answer live calls." status="Provider connection required"/>;
+  if(path==='/app/operator/phone')return <ReceptionistPage/>;
   return <ModulePage title="Not found" eyebrow="Jobryn" description="That workspace page does not exist in this build." status="404"/>;
 }
 
