@@ -65,7 +65,10 @@ export async function requireWorkspace(req: AuthenticatedRequest, res: Response,
   const workspaceId = String(req.headers['x-workspace-id'] || '').trim();
   if (!/^[0-9a-fA-F-]{36}$/.test(workspaceId)) return res.status(400).json({ error: 'WORKSPACE_REQUIRED' });
 
-  const { data, error } = await supabaseAdmin
+  // Tenant membership is verified through the caller's JWT and RLS. This is
+  // both least-privilege and usable in development without a service-role key.
+  const db = createUserClient(req.auth.accessToken);
+  const { data, error } = await db
     .from('workspace_members')
     .select('workspace_id, role')
     .eq('workspace_id', workspaceId)
@@ -92,9 +95,10 @@ export function requireRole(...allowed: WorkspaceRole[]) {
 
 export function requireActiveSubscription(featureKey?: string) {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.workspaceId) return res.status(400).json({ error: 'WORKSPACE_REQUIRED' });
+    if (!req.workspaceId || !req.auth) return res.status(400).json({ error: 'WORKSPACE_REQUIRED' });
 
-    const { data: subscription, error } = await supabaseAdmin
+    const db = createUserClient(req.auth.accessToken);
+    const { data: subscription, error } = await db
       .from('subscriptions')
       .select('status,trial_ends_at,grace_period_ends_at')
       .eq('workspace_id', req.workspaceId)
@@ -111,7 +115,7 @@ export function requireActiveSubscription(featureKey?: string) {
     }
 
     if (featureKey) {
-      const { data: entitlement, error: entitlementError } = await supabaseAdmin
+      const { data: entitlement, error: entitlementError } = await db
         .from('subscription_entitlements')
         .select('enabled,limit_value')
         .eq('workspace_id', req.workspaceId)

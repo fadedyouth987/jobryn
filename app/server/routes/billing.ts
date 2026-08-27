@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { env } from '../env';
 import { asyncRoute, billingRateLimit, validateBody } from '../security';
-import { requireAuth, requireRole, requireSensitiveAuth, requireWorkspace, supabaseAdmin, type AuthenticatedRequest, writeAudit } from '../supabase';
+import { createUserClient, requireAuth, requireRole, requireSensitiveAuth, requireWorkspace, supabaseAdmin, type AuthenticatedRequest, writeAudit } from '../supabase';
 
 export const stripe = env.STRIPE_SECRET_KEY ? new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2026-07-29.dahlia' }) : null;
 
@@ -192,9 +192,10 @@ const router = Router();
 router.use(billingRateLimit, requireAuth, requireWorkspace);
 
 router.get('/status', asyncRoute(async (req: AuthenticatedRequest, res) => {
+  const db = createUserClient(req.auth!.accessToken);
   const [{ data: subscription, error }, { data: entitlements }] = await Promise.all([
-    supabaseAdmin.from('subscriptions').select('plan,status,current_period_end,cancel_at_period_end,trial_ends_at,grace_period_ends_at,stripe_customer_id,stripe_subscription_id,updated_at').eq('workspace_id', req.workspaceId!).maybeSingle(),
-    supabaseAdmin.from('subscription_entitlements').select('feature_key,enabled,limit_value').eq('workspace_id', req.workspaceId!),
+    db.from('subscriptions').select('plan,status,current_period_end,cancel_at_period_end,trial_ends_at,grace_period_ends_at,stripe_customer_id,stripe_subscription_id,updated_at').eq('workspace_id', req.workspaceId!).maybeSingle(),
+    db.from('subscription_entitlements').select('feature_key,enabled,limit_value').eq('workspace_id', req.workspaceId!),
   ]);
   if (error) return res.status(500).json({ error: 'SUBSCRIPTION_READ_FAILED' });
   res.json({ subscription, entitlements: entitlements ?? [], stripeConfigured: Boolean(stripe) });

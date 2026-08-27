@@ -8,6 +8,7 @@ const settlementMigration = await readFile(new URL('../supabase/migrations/0007_
 const communicationsSource = await readFile(new URL('../server/routes/communications.ts', import.meta.url), 'utf8');
 const envSource = await readFile(new URL('../server/env.ts', import.meta.url), 'utf8');
 const packageSource = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as { scripts: Record<string, string> };
+const supabaseSource = await readFile(new URL('../server/supabase.ts', import.meta.url), 'utf8');
 
 test('Stripe webhooks verify signatures against the raw body before claiming events', () => {
   assert.match(billingSource, /express\.raw\(\{ type: 'application\/json'/);
@@ -52,4 +53,22 @@ test('local server auth uses the same public Supabase project as the browser wit
 
 test('Windows development uses the trusted system certificate store for Supabase HTTPS', () => {
   assert.match(packageSource.scripts.dev, /node --use-system-ca --import tsx server\.ts/);
+});
+
+test('tenant membership checks use the authenticated user client and RLS', () => {
+  const start = supabaseSource.indexOf('export async function requireWorkspace');
+  const end = supabaseSource.indexOf('export function requireRole', start);
+  const tenantCheck = supabaseSource.slice(start, end);
+  assert.match(tenantCheck, /createUserClient\(req\.auth\.accessToken\)/);
+  assert.doesNotMatch(tenantCheck, /supabaseAdmin/);
+  assert.match(tenantCheck, /\.eq\('user_id', req\.auth\.userId\)/);
+  assert.match(tenantCheck, /\.eq\('status', 'active'\)/);
+});
+
+test('subscription and entitlement gates use the authenticated tenant client', () => {
+  const start = supabaseSource.indexOf('export function requireActiveSubscription');
+  const end = supabaseSource.indexOf('export function requireSensitiveAuth', start);
+  const subscriptionGate = supabaseSource.slice(start, end);
+  assert.match(subscriptionGate, /createUserClient\(req\.auth\.accessToken\)/);
+  assert.doesNotMatch(subscriptionGate, /supabaseAdmin/);
 });
