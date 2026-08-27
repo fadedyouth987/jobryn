@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import type { Session, User } from '@supabase/supabase-js';
 import { apiFetch } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { navigate } from './router';
 
 export type WorkspaceSummary = {
   id: string;
@@ -64,8 +65,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (active) setLoading(false);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password', true);
+      }
       if (!nextSession) {
         setWorkspaces([]);
         setWorkspaceIdState(null);
