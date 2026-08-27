@@ -16,9 +16,9 @@
 2. Store the Twilio Account SID, Auth Token and E.164 Twilio number as server secrets. Never use `VITE_` for these.
 3. Store `OPENAI_API_KEY` as a server secret.
 4. Deploy private GitHub using `npm run build`, output `dist`, and `npm start`.
-5. Set `APP_URL` and `CORS_ORIGINS` to the final HTTPS Jobryn domain.
+5. Set `APP_URL=https://jobryn.org` and `CORS_ORIGINS=https://jobryn.org,https://www.jobryn.org`.
 6. Complete Twilio Conversation Relay onboarding and accept its AI/ML addendum.
-7. Set the Twilio number's POST Voice URL to `https://YOUR_DOMAIN/api/twilio/voice`.
+7. Set the Twilio number's POST Voice URL to `https://jobryn.org/api/twilio/voice`.
 8. Deploy `/api/receptionist/conversation` on a WebSocket-capable runtime. It must validate `X-Twilio-Signature` during the handshake.
 9. Test FAQ, new lead, urgency, booking, transfer, after-hours, interruption, consent refusal and provider failure before unlocking live calls.
 

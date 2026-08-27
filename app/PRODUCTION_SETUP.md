@@ -44,7 +44,7 @@ In Supabase Authentication:
 - enable email/password
 - require email verification in production
 - configure the production Site URL
-- allow `https://YOUR_DOMAIN/auth/callback` and `https://YOUR_DOMAIN/reset-password`
+- allow `https://jobryn.org/auth/callback` and `https://jobryn.org/reset-password`
 - enable Google and GitHub as the first OAuth providers
 - optionally enable Azure/Microsoft and Apple
 - configure provider client IDs/secrets in Supabase, never in the browser
@@ -77,7 +77,7 @@ Never accept a Stripe Price ID from the browser. The API accepts a Jobryn plan k
 Create a Stripe webhook endpoint:
 
 ```text
-https://YOUR_DOMAIN/api/stripe/webhook
+https://jobryn.org/api/stripe/webhook
 ```
 
 Subscribe at minimum to:
@@ -99,8 +99,8 @@ Minimum production variables:
 
 ```env
 NODE_ENV=production
-APP_URL=https://YOUR_DOMAIN
-CORS_ORIGINS=https://YOUR_DOMAIN
+APP_URL=https://jobryn.org
+CORS_ORIGINS=https://jobryn.org,https://www.jobryn.org
 TRUST_PROXY=1
 
 VITE_SUPABASE_URL=...
