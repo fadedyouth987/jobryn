@@ -6,6 +6,7 @@ const billingSource = await readFile(new URL('../server/routes/billing.ts', impo
 const operationsSource = await readFile(new URL('../server/routes/operations.ts', import.meta.url), 'utf8');
 const settlementMigration = await readFile(new URL('../supabase/migrations/0007_secure_invoice_payment_settlement.sql', import.meta.url), 'utf8');
 const communicationsSource = await readFile(new URL('../server/routes/communications.ts', import.meta.url), 'utf8');
+const envSource = await readFile(new URL('../server/env.ts', import.meta.url), 'utf8');
 
 test('Stripe webhooks verify signatures against the raw body before claiming events', () => {
   assert.match(billingSource, /express\.raw\(\{ type: 'application\/json'/);
@@ -39,4 +40,11 @@ test('outbound SMS requires consent, suppression checks and metered usage', () =
   assert.match(communicationsSource, /suppression_entries/);
   assert.match(communicationsSource, /consumeWorkspaceUsage\(req, 'usage\.sms'\)/);
   assert.match(communicationsSource, /SMS_CONSENT_REQUIRED_OR_SUPPRESSED/);
+});
+
+test('local server auth uses the same public Supabase project as the browser without exposing service role', () => {
+  assert.match(envSource, /SUPABASE_URL: process\.env\.SUPABASE_URL \?\? process\.env\.VITE_SUPABASE_URL/);
+  assert.match(envSource, /SUPABASE_ANON_KEY: process\.env\.SUPABASE_ANON_KEY \?\? process\.env\.VITE_SUPABASE_ANON_KEY/);
+  assert.match(envSource, /SUPABASE_SERVICE_ROLE_KEY: process\.env\.SUPABASE_SERVICE_ROLE_KEY \?\? ''/);
+  assert.doesNotMatch(envSource, /SUPABASE_SERVICE_ROLE_KEY:.*VITE_/);
 });

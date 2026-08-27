@@ -7,8 +7,11 @@ const raw = {
   APP_URL: process.env.APP_URL ?? 'http://localhost:3000',
   CORS_ORIGINS: process.env.CORS_ORIGINS ?? process.env.APP_URL ?? 'http://localhost:3000',
   TRUST_PROXY: process.env.TRUST_PROXY ?? '1',
-  SUPABASE_URL: process.env.SUPABASE_URL ?? '',
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? '',
+  // The URL and publishable key are safe to share with the browser. Reuse the
+  // Vite values in local development so browser and server validate sessions
+  // against the same Supabase project. The service-role key never falls back.
+  SUPABASE_URL: process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '',
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? '',
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? '',
