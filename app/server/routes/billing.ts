@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { env } from '../env';
 import { asyncRoute, billingRateLimit, validateBody } from '../security';
-import { requireAuth, requireRole, requireSensitiveAuth, requireWorkspace, supabaseAdmin, type AuthenticatedRequest, writeAudit } from '../supabase';
+import { createUserClient, requireAuth, requireRole, requireSensitiveAuth, requireWorkspace, supabaseAdmin, type AuthenticatedRequest, writeAudit } from '../supabase';
 
 export const stripe = env.STRIPE_SECRET_KEY ? new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: '2026-07-29.dahlia' }) : null;
 
@@ -192,12 +192,18 @@ const router = Router();
 router.use(billingRateLimit, requireAuth, requireWorkspace);
 
 router.get('/status', asyncRoute(async (req: AuthenticatedRequest, res) => {
-  const [{ data: subscription, error }, { data: entitlements }] = await Promise.all([
-    supabaseAdmin.from('subscriptions').select('plan,status,current_period_end,cancel_at_period_end,trial_ends_at,grace_period_ends_at,stripe_customer_id,stripe_subscription_id,updated_at').eq('workspace_id', req.workspaceId!).maybeSingle(),
-    supabaseAdmin.from('subscription_entitlements').select('feature_key,enabled,limit_value').eq('workspace_id', req.workspaceId!),
+  const db = createUserClient(req.auth!.accessToken);
+  const accessState = db.rpc('get_workspace_access_state', { target_workspace: req.workspaceId! }).maybeSingle();
+  const fullSubscription = ['owner', 'admin'].includes(req.workspaceRole || '')
+    ? db.from('subscriptions').select('plan,status,current_period_end,cancel_at_period_end,trial_ends_at,grace_period_ends_at,stripe_customer_id,stripe_subscription_id,updated_at').eq('workspace_id', req.workspaceId!).maybeSingle()
+    : Promise.resolve({ data: null, error: null });
+  const [{ data: access, error }, { data: ownerSubscription }, { data: entitlements }] = await Promise.all([
+    accessState,
+    fullSubscription,
+    db.from('subscription_entitlements').select('feature_key,enabled,limit_value').eq('workspace_id', req.workspaceId!),
   ]);
   if (error) return res.status(500).json({ error: 'SUBSCRIPTION_READ_FAILED' });
-  res.json({ subscription, entitlements: entitlements ?? [], stripeConfigured: Boolean(stripe) });
+  res.json({ subscription: ownerSubscription ?? access, entitlements: entitlements ?? [], stripeConfigured: Boolean(stripe) });
 }));
 
 router.post('/checkout', requireRole('owner','admin'), requireSensitiveAuth, validateBody(z.object({
@@ -225,13 +231,18 @@ router.post('/checkout', requireRole('owner','admin'), requireSensitiveAuth, val
       metadata: { workspace_id: req.workspaceId! },
     }, { idempotencyKey: `customer:${req.workspaceId}` });
     customerId = customer.id;
-    await supabaseAdmin.from('subscriptions').upsert({
-      workspace_id: req.workspaceId!,
-      stripe_customer_id: customerId,
-      plan: 'starter',
-      status: 'incomplete',
-      updated_at: new Date().toISOString(),
-    });
+    if (existingSub) {
+      const { error: customerLinkError } = await supabaseAdmin.from('subscriptions').update({
+        stripe_customer_id: customerId,
+        updated_at: new Date().toISOString(),
+      }).eq('workspace_id', req.workspaceId!);
+      if (customerLinkError) return res.status(500).json({ error: 'STRIPE_CUSTOMER_LINK_FAILED' });
+    } else {
+      const { error: customerLinkError } = await supabaseAdmin.from('subscriptions').insert({
+        workspace_id: req.workspaceId!, stripe_customer_id: customerId, plan: 'starter', status: 'incomplete',
+      });
+      if (customerLinkError) return res.status(500).json({ error: 'STRIPE_CUSTOMER_LINK_FAILED' });
+    }
   }
 
   const providedKey = String(req.header('idempotency-key') || req.requestId || '').slice(0, 200);

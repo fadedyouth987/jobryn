@@ -22,12 +22,18 @@ npm run dev
 
 Apply migrations in order:
 
-1. `supabase/migrations/0001_jobryn_core.sql`
+1. `supabase/migrations/0001_vantory_core.sql` (historical compatibility name)
 2. `supabase/migrations/0002_saas_roles_and_plans.sql`
 3. `supabase/migrations/0003_revenue_os_core.sql`
 4. `supabase/migrations/0004_subscription_and_tenant_invariants.sql`
 5. `supabase/migrations/0005_least_privilege_rbac.sql`
 6. `supabase/migrations/0006_usage_metering.sql`
+7. `supabase/migrations/0007_secure_invoice_payment_settlement.sql`
+8. `supabase/migrations/0008_twilio_tenant_routing.sql`
+9. `supabase/migrations/0009_backfill_workspace_trials.sql`
+10. `supabase/migrations/0010_harden_asset_storage.sql`
+11. `supabase/migrations/0011_member_subscription_access.sql`
+12. `supabase/migrations/0012_ai_receptionist_configuration.sql`
 
 Use the browser publishable/anon key only in `VITE_*` variables. The service-role key belongs on the server only.
 
@@ -38,7 +44,7 @@ In Supabase Authentication:
 - enable email/password
 - require email verification in production
 - configure the production Site URL
-- allow `https://YOUR_DOMAIN/auth/callback` and `https://YOUR_DOMAIN/reset-password`
+- allow `https://jobryn.org/auth/callback` and `https://jobryn.org/reset-password`
 - enable Google and GitHub as the first OAuth providers
 - optionally enable Azure/Microsoft and Apple
 - configure provider client IDs/secrets in Supabase, never in the browser
@@ -71,7 +77,7 @@ Never accept a Stripe Price ID from the browser. The API accepts a Jobryn plan k
 Create a Stripe webhook endpoint:
 
 ```text
-https://YOUR_DOMAIN/api/stripe/webhook
+https://jobryn.org/api/stripe/webhook
 ```
 
 Subscribe at minimum to:
@@ -93,8 +99,8 @@ Minimum production variables:
 
 ```env
 NODE_ENV=production
-APP_URL=https://YOUR_DOMAIN
-CORS_ORIGINS=https://YOUR_DOMAIN
+APP_URL=https://jobryn.org
+CORS_ORIGINS=https://jobryn.org,https://www.jobryn.org
 TRUST_PROXY=1
 
 VITE_SUPABASE_URL=...
@@ -147,7 +153,7 @@ Use a managed secrets store on your host. Do not place secrets in `VITE_*` varia
 Do not call a deployment production-ready until these pass against the real Supabase and Stripe projects:
 
 ```bash
-npm install
+npm ci
 npm run typecheck
 npm run security:check
 npm run build

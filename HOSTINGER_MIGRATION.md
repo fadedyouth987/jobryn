@@ -14,7 +14,7 @@ run Jobryn's API, Stripe webhooks or authentication server.
 4. Copy `app/.env.example` into Hostinger environment settings. Never upload a
    populated `.env` file to GitHub.
 5. Apply `app/supabase/migrations/0001_vantory_core.sql` through
-   `0006_usage_metering.sql` in filename order to an empty staging database.
+   `0011_member_subscription_access.sql` in filename order to an empty staging database.
 
 The historical `vantory` migration and storage identifiers are intentionally
 preserved for compatibility; the product displayed to users is Jobryn.
@@ -52,7 +52,7 @@ or Stripe event rows.
 
 1. Store the Stripe secret and webhook signing secret only in Hostinger secrets.
 2. Create a new Stripe webhook endpoint for
-   `https://staging.jobryn.com/api/webhooks/stripe`.
+   `https://staging.jobryn.com/api/stripe/webhook`.
 3. Configure the trusted Starter, Growth and Operator Price IDs server-side.
 4. Test checkout, portal, duplicate events, out-of-order subscription events,
    cancellation and failed-payment handling in Stripe test mode.
@@ -77,4 +77,3 @@ or Stripe event rows.
 4. Keep Hatchable unchanged during the rollback window.
 5. Roll back DNS if authentication, tenant isolation, billing or data-count
    verification fails.
-

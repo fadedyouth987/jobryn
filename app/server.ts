@@ -1,5 +1,4 @@
 import express from 'express';
-import path from 'node:path';
 import { env, assertProductionSecrets } from './server/env';
 import { errorHandler, globalRateLimit, notFound, requestId, securityMiddleware } from './server/security';
 import workspacesRouter from './server/routes/workspaces';
@@ -13,10 +12,13 @@ import operatorRouter from './server/routes/operator';
 import teamRouter from './server/routes/team';
 import billingRouter, { stripeWebhookRouter } from './server/routes/billing';
 import legacyAiRouter from './server/routes/legacyAi';
+import communicationsRouter, { twilioWebhookRouter } from './server/routes/communications';
+import { twilioConfigured } from './server/providers/twilio';
+import receptionistRouter, { receptionistWebhookRouter } from './server/routes/receptionist';
 
 assertProductionSecrets();
 
-const app = express();
+export const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', Number.isFinite(Number(env.TRUST_PROXY)) ? Number(env.TRUST_PROXY) : env.TRUST_PROXY);
 
@@ -26,6 +28,9 @@ app.use(globalRateLimit);
 
 // Stripe signature verification must see the original raw body.
 app.use('/api/stripe', stripeWebhookRouter);
+// Twilio signs the original form fields, so these routes must run before the global body parsers.
+app.use('/api/twilio', express.urlencoded({ extended: false, limit: '64kb' }), twilioWebhookRouter);
+app.use('/api/twilio', express.urlencoded({ extended: false, limit: '64kb' }), receptionistWebhookRouter);
 
 app.use(express.json({ limit: '512kb', strict: true }));
 app.use(express.urlencoded({ extended: false, limit: '64kb' }));
@@ -41,9 +46,12 @@ app.get('/api/health', (_req, res) => {
     product: 'Jobryn',
     version: '1.0.0-saas-foundation',
     releaseStatus: env.isProduction ? 'PRODUCTION_CONFIGURATION' : 'PRE_PRODUCTION',
+    authConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_ANON_KEY),
     databaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
+    privilegedDatabaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
     stripeConfigured: Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET),
-    aiConfigured: Boolean(env.GEMINI_API_KEY && env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY'),
+    aiConfigured: Boolean((env.GEMINI_API_KEY && env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY') || env.OPENAI_API_KEY),
+    messagingConfigured: twilioConfigured(),
     timestamp: new Date().toISOString(),
   });
 });
@@ -58,38 +66,11 @@ app.use('/api/intelligence', intelligenceRouter);
 app.use('/api/operator', operatorRouter);
 app.use('/api/team', teamRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/communications', communicationsRouter);
+app.use('/api/receptionist', receptionistRouter);
 app.use('/api', legacyAiRouter);
 
-async function startServer() {
-  if (!env.isProduction) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath, {
-      index: false,
-      maxAge: '1h',
-      setHeaders(res, filePath) {
-        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
-        if (/\.[a-f0-9]{8,}\./.test(filePath)) res.setHeader('Cache-Control', 'public,max-age=31536000,immutable');
-      },
-    }));
-  }
-
+export function finalizeApp() {
   app.use('/api', notFound);
-
-  const distPath = path.join(process.cwd(), 'dist');
-  app.get('*', (_req, res) => {
-    res.setHeader('Cache-Control', 'no-store');
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-
   app.use(errorHandler);
-
-  app.listen(env.PORT, '0.0.0.0', () => {
-    console.log(JSON.stringify({ level:'info', message:'Jobryn server started', port:env.PORT, environment:env.NODE_ENV }));
-  });
 }
-
-void startServer();

@@ -55,6 +55,29 @@ router.get('/jobs', asyncRoute(async (req: AuthenticatedRequest, res) => {
   res.json({ jobs: data ?? [] });
 }));
 
+router.get('/jobs/:id', asyncRoute(async (req: AuthenticatedRequest, res) => {
+  const db = createUserClient(req.auth!.accessToken);
+  const workspaceId = req.workspaceId!;
+  const { data: job, error: jobError } = await db.from('jobs')
+    .select('id,job_number,title,description,status,address_text,scheduled_start,scheduled_end,completed_at,created_at,updated_at,customer_id,customers(id,display_name,phone,email),service_id,services(name),assigned_user_id')
+    .eq('workspace_id', workspaceId).eq('id', req.params.id).maybeSingle();
+  if (jobError) return res.status(500).json({ error: 'JOB_READ_FAILED' });
+  if (!job) return res.status(404).json({ error: 'JOB_NOT_FOUND' });
+  const [appointments, quotes, invoices] = await Promise.all([
+    db.from('appointments').select('id,title,status,starts_at,ends_at,address_text,assigned_user_id').eq('workspace_id', workspaceId).eq('job_id', job.id).order('starts_at'),
+    db.from('quotes').select('id,quote_number,status,total_cents,expires_at,created_at').eq('workspace_id', workspaceId).eq('job_id', job.id).order('created_at', { ascending: false }),
+    db.from('invoices').select('id,invoice_number,status,total_cents,balance_due_cents,due_at,created_at').eq('workspace_id', workspaceId).eq('job_id', job.id).order('created_at', { ascending: false }),
+  ]);
+  const relatedError = [appointments.error, quotes.error, invoices.error].find(Boolean);
+  if (relatedError) return res.status(500).json({ error: 'JOB_RELATED_READ_FAILED' });
+  const invoiceIds = (invoices.data ?? []).map((invoice: any) => invoice.id);
+  const payments = invoiceIds.length
+    ? await db.from('payments').select('id,status,amount_cents,paid_at,invoice_id,created_at').eq('workspace_id', workspaceId).in('invoice_id', invoiceIds).order('created_at', { ascending: false })
+    : { data: [], error: null };
+  if (payments.error) return res.status(500).json({ error: 'JOB_PAYMENT_READ_FAILED' });
+  res.json({ job, appointments: appointments.data ?? [], quotes: quotes.data ?? [], invoices: invoices.data ?? [], payments: payments.data ?? [] });
+}));
+
 router.post('/jobs', requireRole('owner','admin','manager','staff'), validateBody(z.object({
   customer_id: z.string().uuid().nullable().optional(),
   lead_id: z.string().uuid().nullable().optional(),
@@ -74,14 +97,70 @@ router.post('/jobs', requireRole('owner','admin','manager','staff'), validateBod
   res.status(201).json({ job: data });
 }));
 
+router.patch('/jobs/:id/schedule', requireRole('owner','admin','manager','staff'), validateBody(z.object({
+  scheduled_start: z.string().datetime(),
+  scheduled_end: z.string().datetime(),
+  assigned_user_id: z.string().uuid().nullable().optional(),
+})), asyncRoute(async (req: AuthenticatedRequest, res) => {
+  if (new Date(req.body.scheduled_end) <= new Date(req.body.scheduled_start)) return res.status(400).json({ error: 'INVALID_TIME_RANGE' });
+  const db = createUserClient(req.auth!.accessToken);
+  const workspaceId = req.workspaceId!;
+  const { data: current, error: readError } = await db.from('jobs').select('id,status').eq('workspace_id', workspaceId).eq('id', req.params.id).maybeSingle();
+  if (readError) return res.status(500).json({ error: 'JOB_READ_FAILED' });
+  if (!current) return res.status(404).json({ error: 'JOB_NOT_FOUND' });
+  if (['completed','invoiced','paid','cancelled'].includes(current.status)) return res.status(409).json({ error: 'JOB_CANNOT_BE_SCHEDULED', status: current.status });
+  if (req.body.assigned_user_id) {
+    const { data: conflict, error: conflictError } = await db.from('jobs').select('id').eq('workspace_id', workspaceId)
+      .eq('assigned_user_id', req.body.assigned_user_id).neq('id', current.id).in('status', ['scheduled','on_the_way','in_progress'])
+      .lt('scheduled_start', req.body.scheduled_end).gt('scheduled_end', req.body.scheduled_start).limit(1);
+    if (conflictError) return res.status(500).json({ error: 'AVAILABILITY_CHECK_FAILED' });
+    if (conflict?.length) return res.status(409).json({ error: 'SCHEDULING_CONFLICT' });
+  }
+  const patch = { scheduled_start: req.body.scheduled_start, scheduled_end: req.body.scheduled_end, assigned_user_id: req.body.assigned_user_id ?? null, status: current.status === 'new' ? 'scheduled' : current.status, updated_at: new Date().toISOString() };
+  const { data, error } = await db.from('jobs').update(patch).eq('workspace_id', workspaceId).eq('id', current.id).select('*').single();
+  if (error) return res.status(400).json({ error: 'JOB_SCHEDULE_FAILED' });
+  await writeAudit(req, 'job.scheduled', 'job', data.id, { scheduled_start: data.scheduled_start, scheduled_end: data.scheduled_end, assigned_user_id: data.assigned_user_id });
+  res.json({ job: data });
+}));
+
+export const jobStatusTransitions: Record<string, string[]> = {
+  new: ['scheduled', 'in_progress', 'cancelled'],
+  scheduled: ['on_the_way', 'in_progress', 'cancelled'],
+  on_the_way: ['in_progress', 'scheduled', 'cancelled'],
+  in_progress: ['completed', 'scheduled', 'cancelled'],
+  completed: ['invoiced'],
+  invoiced: ['paid'],
+  paid: [],
+  cancelled: ['new'],
+};
+
+export function canTransitionJob(from: string, to: string) {
+  return (jobStatusTransitions[from] ?? []).includes(to);
+}
+
 router.patch('/jobs/:id/status', requireRole('owner','admin','manager','staff'), validateBody(z.object({ status: z.enum(['new','scheduled','on_the_way','in_progress','completed','invoiced','paid','cancelled']) })), asyncRoute(async (req: AuthenticatedRequest, res) => {
   const db = createUserClient(req.auth!.accessToken);
+  const { data: current, error: readError } = await db.from('jobs').select('id,status,scheduled_start,scheduled_end').eq('workspace_id', req.workspaceId!).eq('id', req.params.id).maybeSingle();
+  if (readError) return res.status(500).json({ error: 'JOB_READ_FAILED' });
+  if (!current) return res.status(404).json({ error: 'JOB_NOT_FOUND' });
+  if (!canTransitionJob(current.status, req.body.status)) return res.status(409).json({ error: 'INVALID_JOB_TRANSITION', from: current.status, to: req.body.status });
+  if (req.body.status === 'scheduled' && (!current.scheduled_start || !current.scheduled_end)) return res.status(409).json({ error: 'JOB_SCHEDULE_REQUIRED' });
+  if (req.body.status === 'invoiced') {
+    const { data: invoice, error: invoiceError } = await db.from('invoices').select('id').eq('workspace_id', req.workspaceId!).eq('job_id', current.id).neq('status', 'void').limit(1).maybeSingle();
+    if (invoiceError) return res.status(500).json({ error: 'JOB_INVOICE_CHECK_FAILED' });
+    if (!invoice) return res.status(409).json({ error: 'JOB_INVOICE_REQUIRED' });
+  }
+  if (req.body.status === 'paid') {
+    const { data: invoices, error: invoiceError } = await db.from('invoices').select('id,balance_due_cents,status').eq('workspace_id', req.workspaceId!).eq('job_id', current.id).neq('status', 'void');
+    if (invoiceError) return res.status(500).json({ error: 'JOB_PAYMENT_CHECK_FAILED' });
+    if (!invoices?.length || invoices.some((invoice: any) => Number(invoice.balance_due_cents) > 0 || !['paid','refunded'].includes(invoice.status))) return res.status(409).json({ error: 'JOB_PAYMENT_REQUIRED' });
+  }
   const patch: Record<string, unknown> = { status: req.body.status, updated_at: new Date().toISOString() };
   if (req.body.status === 'completed') patch.completed_at = new Date().toISOString();
   const { data, error } = await db.from('jobs').update(patch).eq('workspace_id', req.workspaceId!).eq('id', req.params.id).select('*').maybeSingle();
   if (error) return res.status(400).json({ error: 'JOB_UPDATE_FAILED' });
   if (!data) return res.status(404).json({ error: 'JOB_NOT_FOUND' });
-  await writeAudit(req, 'job.status.changed', 'job', data.id, { status: req.body.status });
+  await writeAudit(req, 'job.status.changed', 'job', data.id, { from: current.status, to: req.body.status });
   res.json({ job: data });
 }));
 
@@ -92,14 +171,14 @@ router.get('/quotes', asyncRoute(async (req: AuthenticatedRequest, res) => {
   res.json({ quotes: data ?? [] });
 }));
 
-const documentItems = z.array(z.object({
+export const documentItems = z.array(z.object({
   description: z.string().trim().min(2).max(500),
   quantity: z.number().positive().max(100_000),
   unit_price_cents: z.number().int().min(0).max(100_000_000),
   gst_rate: z.union([z.literal(0), z.literal(0.1)]).default(0.1),
 })).min(1).max(50);
 
-function calculateDocument(items: z.infer<typeof documentItems>) {
+export function calculateDocument(items: z.infer<typeof documentItems>) {
   return items.reduce((total, item) => {
     const lineSubtotal = Math.round(item.quantity * item.unit_price_cents);
     return { subtotal: total.subtotal + lineSubtotal, gst: total.gst + Math.round(lineSubtotal * item.gst_rate) };

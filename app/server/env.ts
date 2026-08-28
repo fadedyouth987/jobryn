@@ -3,12 +3,16 @@ import { z } from 'zod';
 
 const raw = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
+  DEPLOYMENT_STAGE: process.env.DEPLOYMENT_STAGE ?? process.env.NODE_ENV ?? 'development',
   PORT: process.env.PORT ?? '3000',
   APP_URL: process.env.APP_URL ?? 'http://localhost:3000',
   CORS_ORIGINS: process.env.CORS_ORIGINS ?? process.env.APP_URL ?? 'http://localhost:3000',
   TRUST_PROXY: process.env.TRUST_PROXY ?? '1',
-  SUPABASE_URL: process.env.SUPABASE_URL ?? '',
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? '',
+  // The URL and publishable key are safe to share with the browser. Reuse the
+  // Vite values in local development so browser and server validate sessions
+  // against the same Supabase project. The service-role key never falls back.
+  SUPABASE_URL: process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '',
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? '',
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? '',
@@ -17,12 +21,18 @@ const raw = {
   STRIPE_PRICE_OPERATOR: process.env.STRIPE_PRICE_OPERATOR ?? '',
   GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? '',
   GEMINI_MODEL: process.env.GEMINI_MODEL ?? 'gemini-3.7-flash',
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? '',
+  OPENAI_MODEL: process.env.OPENAI_MODEL ?? 'gpt-5-mini',
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID ?? '',
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN ?? '',
+  TWILIO_PHONE_NUMBER: process.env.TWILIO_PHONE_NUMBER ?? '',
   REQUIRE_AAL2_SENSITIVE: process.env.REQUIRE_AAL2_SENSITIVE ?? (process.env.NODE_ENV === 'production' ? 'true' : 'false'),
   REQUIRE_EMAIL_VERIFICATION: process.env.REQUIRE_EMAIL_VERIFICATION ?? (process.env.NODE_ENV === 'production' ? 'true' : 'false'),
 };
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  DEPLOYMENT_STAGE: z.enum(['development', 'staging', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   APP_URL: z.string().url(),
   CORS_ORIGINS: z.string().min(1),
@@ -37,6 +47,11 @@ const schema = z.object({
   STRIPE_PRICE_OPERATOR: z.string(),
   GEMINI_API_KEY: z.string(),
   GEMINI_MODEL: z.string().min(3).max(100),
+  OPENAI_API_KEY: z.string(),
+  OPENAI_MODEL: z.string().min(3).max(100),
+  TWILIO_ACCOUNT_SID: z.string(),
+  TWILIO_AUTH_TOKEN: z.string(),
+  TWILIO_PHONE_NUMBER: z.string(),
   REQUIRE_AAL2_SENSITIVE: z.enum(['true', 'false']).default('false'),
   REQUIRE_EMAIL_VERIFICATION: z.enum(['true', 'false']).default('false'),
 });
@@ -45,7 +60,10 @@ const parsed = schema.parse(raw);
 
 export const env = {
   ...parsed,
-  isProduction: parsed.NODE_ENV === 'production',
+  // Wrangler statically sets NODE_ENV=production for every deployment, including
+  // staging. This explicit stage keeps production secret enforcement fail-closed
+  // without making a preview deployment pretend to be production.
+  isProduction: parsed.DEPLOYMENT_STAGE === 'production',
   allowedOrigins: parsed.CORS_ORIGINS.split(',').map((v) => v.trim()).filter(Boolean),
   requireAal2Sensitive: parsed.REQUIRE_AAL2_SENSITIVE === 'true',
   requireEmailVerification: parsed.REQUIRE_EMAIL_VERIFICATION === 'true',

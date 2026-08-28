@@ -27,7 +27,7 @@ export type AuthenticatedRequest = Request & {
   requestId?: string;
 };
 
-function readAal(token: string): 'aal1' | 'aal2' | null {
+export function readAal(token: string): 'aal1' | 'aal2' | null {
   try {
     const part = token.split('.')[1];
     if (!part) return null;
@@ -65,7 +65,10 @@ export async function requireWorkspace(req: AuthenticatedRequest, res: Response,
   const workspaceId = String(req.headers['x-workspace-id'] || '').trim();
   if (!/^[0-9a-fA-F-]{36}$/.test(workspaceId)) return res.status(400).json({ error: 'WORKSPACE_REQUIRED' });
 
-  const { data, error } = await supabaseAdmin
+  // Tenant membership is verified through the caller's JWT and RLS. This is
+  // both least-privilege and usable in development without a service-role key.
+  const db = createUserClient(req.auth.accessToken);
+  const { data, error } = await db
     .from('workspace_members')
     .select('workspace_id, role')
     .eq('workspace_id', workspaceId)
@@ -92,26 +95,26 @@ export function requireRole(...allowed: WorkspaceRole[]) {
 
 export function requireActiveSubscription(featureKey?: string) {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.workspaceId) return res.status(400).json({ error: 'WORKSPACE_REQUIRED' });
+    if (!req.workspaceId || !req.auth) return res.status(400).json({ error: 'WORKSPACE_REQUIRED' });
 
-    const { data: subscription, error } = await supabaseAdmin
-      .from('subscriptions')
-      .select('status,trial_ends_at,grace_period_ends_at')
-      .eq('workspace_id', req.workspaceId)
-      .maybeSingle();
+    const db = createUserClient(req.auth.accessToken);
+    const { data: subscription, error } = await db.rpc('get_workspace_access_state', {
+      target_workspace: req.workspaceId,
+    }).maybeSingle();
     if (error) return res.status(500).json({ error: 'SUBSCRIPTION_CHECK_FAILED' });
     if (!subscription) return res.status(402).json({ error: 'SUBSCRIPTION_REQUIRED' });
+    const access = subscription as { status: string; trial_ends_at: string | null; grace_period_ends_at: string | null };
 
     const now = Date.now();
-    const trialActive = subscription.status === 'trialing' && Boolean(subscription.trial_ends_at) && new Date(subscription.trial_ends_at).getTime() > now;
-    const billingActive = subscription.status === 'active';
-    const graceActive = subscription.status === 'past_due' && Boolean(subscription.grace_period_ends_at) && new Date(subscription.grace_period_ends_at).getTime() > now;
+    const trialActive = access.status === 'trialing' && Boolean(access.trial_ends_at) && new Date(access.trial_ends_at!).getTime() > now;
+    const billingActive = access.status === 'active';
+    const graceActive = access.status === 'past_due' && Boolean(access.grace_period_ends_at) && new Date(access.grace_period_ends_at!).getTime() > now;
     if (!trialActive && !billingActive && !graceActive) {
-      return res.status(402).json({ error: 'SUBSCRIPTION_REQUIRED', status: subscription.status, trialEndsAt: subscription.trial_ends_at });
+      return res.status(402).json({ error: 'SUBSCRIPTION_REQUIRED', status: access.status, trialEndsAt: access.trial_ends_at });
     }
 
     if (featureKey) {
-      const { data: entitlement, error: entitlementError } = await supabaseAdmin
+      const { data: entitlement, error: entitlementError } = await db
         .from('subscription_entitlements')
         .select('enabled,limit_value')
         .eq('workspace_id', req.workspaceId)
@@ -169,7 +172,10 @@ export async function writeAudit(
   details: Record<string, unknown> = {},
   severity: 'info' | 'warning' | 'critical' = 'info',
 ) {
-  if (!req.workspaceId || !req.auth) return;
+  // Audit rows are trusted server records and must never be written through a
+  // browser/public key. Production startup requires this key; local development
+  // reports the missing capability through /api/health instead of faking writes.
+  if (!req.workspaceId || !req.auth || !env.SUPABASE_SERVICE_ROLE_KEY) return;
   await supabaseAdmin.from('audit_logs').insert({
     workspace_id: req.workspaceId,
     actor_user_id: req.auth.userId,
