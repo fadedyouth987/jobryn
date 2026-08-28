@@ -1,5 +1,4 @@
 import express from 'express';
-import path from 'node:path';
 import { env, assertProductionSecrets } from './server/env';
 import { errorHandler, globalRateLimit, notFound, requestId, securityMiddleware } from './server/security';
 import workspacesRouter from './server/routes/workspaces';
@@ -19,7 +18,7 @@ import receptionistRouter, { receptionistWebhookRouter } from './server/routes/r
 
 assertProductionSecrets();
 
-const app = express();
+export const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', Number.isFinite(Number(env.TRUST_PROXY)) ? Number(env.TRUST_PROXY) : env.TRUST_PROXY);
 
@@ -71,36 +70,7 @@ app.use('/api/communications', communicationsRouter);
 app.use('/api/receptionist', receptionistRouter);
 app.use('/api', legacyAiRouter);
 
-async function startServer() {
-  if (!env.isProduction) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath, {
-      index: false,
-      maxAge: '1h',
-      setHeaders(res, filePath) {
-        if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
-        if (/\.[a-f0-9]{8,}\./.test(filePath)) res.setHeader('Cache-Control', 'public,max-age=31536000,immutable');
-      },
-    }));
-  }
-
+export function finalizeApp() {
   app.use('/api', notFound);
-
-  const distPath = path.join(process.cwd(), 'dist');
-  app.get('*', (_req, res) => {
-    res.setHeader('Cache-Control', 'no-store');
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-
   app.use(errorHandler);
-
-  app.listen(env.PORT, '0.0.0.0', () => {
-    console.log(JSON.stringify({ level:'info', message:'Jobryn server started', port:env.PORT, environment:env.NODE_ENV }));
-  });
 }
-
-void startServer();

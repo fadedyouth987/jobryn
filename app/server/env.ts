@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 const raw = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
+  DEPLOYMENT_STAGE: process.env.DEPLOYMENT_STAGE ?? process.env.NODE_ENV ?? 'development',
   PORT: process.env.PORT ?? '3000',
   APP_URL: process.env.APP_URL ?? 'http://localhost:3000',
   CORS_ORIGINS: process.env.CORS_ORIGINS ?? process.env.APP_URL ?? 'http://localhost:3000',
@@ -31,6 +32,7 @@ const raw = {
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  DEPLOYMENT_STAGE: z.enum(['development', 'staging', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   APP_URL: z.string().url(),
   CORS_ORIGINS: z.string().min(1),
@@ -58,7 +60,10 @@ const parsed = schema.parse(raw);
 
 export const env = {
   ...parsed,
-  isProduction: parsed.NODE_ENV === 'production',
+  // Wrangler statically sets NODE_ENV=production for every deployment, including
+  // staging. This explicit stage keeps production secret enforcement fail-closed
+  // without making a preview deployment pretend to be production.
+  isProduction: parsed.DEPLOYMENT_STAGE === 'production',
   allowedOrigins: parsed.CORS_ORIGINS.split(',').map((v) => v.trim()).filter(Boolean),
   requireAal2Sensitive: parsed.REQUIRE_AAL2_SENSITIVE === 'true',
   requireEmailVerification: parsed.REQUIRE_EMAIL_VERIFICATION === 'true',

@@ -22,5 +22,10 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "server.legacy.ts",
+    "worker.ts",
+    "worker-configuration.d.ts"
+  ]
 }

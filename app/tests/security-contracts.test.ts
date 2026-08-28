@@ -59,7 +59,7 @@ test('local server auth uses the same public Supabase project as the browser wit
 });
 
 test('Windows development uses the trusted system certificate store for Supabase HTTPS', () => {
-  assert.match(packageSource.scripts.dev, /node --use-system-ca --import tsx server\.ts/);
+  assert.match(packageSource.scripts.dev, /node --use-system-ca --import tsx node-server\.ts/);
 });
 
 test('tenant membership checks use the authenticated user client and RLS', () => {
