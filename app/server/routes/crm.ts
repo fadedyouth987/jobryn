@@ -40,6 +40,26 @@ router.get('/customers', asyncRoute(async (req: AuthenticatedRequest, res) => {
   res.json({ customers: data ?? [] });
 }));
 
+router.get('/customers/:id', asyncRoute(async (req: AuthenticatedRequest, res) => {
+  const db = createUserClient(req.auth!.accessToken);
+  const workspaceId = req.workspaceId!;
+  const { data: customer, error: customerError } = await db.from('customers').select('*').eq('workspace_id', workspaceId).eq('id', req.params.id).is('deleted_at', null).maybeSingle();
+  if (customerError) return res.status(500).json({ error: 'CUSTOMER_READ_FAILED' });
+  if (!customer) return res.status(404).json({ error: 'CUSTOMER_NOT_FOUND' });
+  const [addresses, leads, jobs, quotes, invoices, payments, calls] = await Promise.all([
+    db.from('customer_addresses').select('*').eq('workspace_id', workspaceId).eq('customer_id', customer.id).order('created_at'),
+    db.from('leads').select('id,title,stage,source,estimated_value_cents,created_at').eq('workspace_id', workspaceId).eq('customer_id', customer.id).is('deleted_at', null).order('created_at', { ascending: false }),
+    db.from('jobs').select('id,job_number,title,status,scheduled_start,completed_at,created_at').eq('workspace_id', workspaceId).eq('customer_id', customer.id).order('created_at', { ascending: false }),
+    db.from('quotes').select('id,quote_number,status,total_cents,created_at').eq('workspace_id', workspaceId).eq('customer_id', customer.id).order('created_at', { ascending: false }),
+    db.from('invoices').select('id,invoice_number,status,total_cents,balance_due_cents,due_at,created_at').eq('workspace_id', workspaceId).eq('customer_id', customer.id).order('created_at', { ascending: false }),
+    db.from('payments').select('id,status,amount_cents,paid_at,created_at').eq('workspace_id', workspaceId).eq('customer_id', customer.id).order('created_at', { ascending: false }),
+    db.from('calls').select('id,direction,status,from_number,to_number,started_at,ended_at,summary').eq('workspace_id', workspaceId).eq('customer_id', customer.id).order('started_at', { ascending: false }).limit(50),
+  ]);
+  const relatedError = [addresses.error, leads.error, jobs.error, quotes.error, invoices.error, payments.error, calls.error].find(Boolean);
+  if (relatedError) return res.status(500).json({ error: 'CUSTOMER_RELATED_READ_FAILED' });
+  res.json({ customer, addresses: (addresses.data ?? []).map((address: any) => ({ ...address, street: [address.line1, address.line2].filter(Boolean).join(', ') })), leads: leads.data ?? [], jobs: jobs.data ?? [], quotes: quotes.data ?? [], invoices: invoices.data ?? [], payments: payments.data ?? [], calls: calls.data ?? [] });
+}));
+
 router.post('/customers', requireRole('owner','admin','manager','staff'), validateBody(customerInput), asyncRoute(async (req: AuthenticatedRequest, res) => {
   const db = createUserClient(req.auth!.accessToken);
   const displayName = req.body.display_name || `${req.body.first_name} ${req.body.last_name}`.trim() || req.body.email || req.body.phone || 'Customer';

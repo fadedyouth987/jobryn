@@ -21,6 +21,9 @@ router.get('/', asyncRoute(async (req: AuthenticatedRequest, res) => {
     outstandingInvoices,
     revenue,
     aiActions,
+    overdueInvoices,
+    unscheduledJobs,
+    pendingApprovals,
   ] = await Promise.all([
     db.from('leads').select('id,stage', { count: 'exact' }).eq('workspace_id', workspaceId).is('deleted_at', null),
     db.from('customers').select('id', { count: 'exact', head: true }).eq('workspace_id', workspaceId).is('deleted_at', null),
@@ -29,9 +32,12 @@ router.get('/', asyncRoute(async (req: AuthenticatedRequest, res) => {
     db.from('invoices').select('id,balance_due_cents,status').eq('workspace_id', workspaceId).in('status', ['sent','viewed','part_paid','overdue']),
     db.from('payments').select('amount_cents').eq('workspace_id', workspaceId).eq('status', 'succeeded').gte('paid_at', startOfMonth),
     db.from('ai_actions').select('id,status', { count: 'exact' }).eq('workspace_id', workspaceId).gte('created_at', startOfMonth),
+    db.from('invoices').select('id,invoice_number,balance_due_cents,due_at,customer_id,customers(display_name)').eq('workspace_id', workspaceId).in('status', ['sent','viewed','part_paid','overdue']).lt('due_at', now.toISOString()).order('due_at').limit(10),
+    db.from('jobs').select('id,title,status,customer_id,customers(display_name)').eq('workspace_id', workspaceId).in('status', ['new','scheduled']).is('scheduled_start', null).order('created_at').limit(10),
+    db.from('approvals').select('id,resource_type,reason,created_at').eq('workspace_id', workspaceId).eq('status', 'pending').order('created_at').limit(10),
   ]);
 
-  const fail = [leads.error,customers.error,todaysJobs.error,openQuotes.error,outstandingInvoices.error,revenue.error,aiActions.error].find(Boolean);
+  const fail = [leads.error,customers.error,todaysJobs.error,openQuotes.error,outstandingInvoices.error,revenue.error,aiActions.error,overdueInvoices.error,unscheduledJobs.error,pendingApprovals.error].find(Boolean);
   if (fail) return res.status(500).json({ error: 'DASHBOARD_READ_FAILED' });
 
   const leadRows = leads.data ?? [];
@@ -52,6 +58,12 @@ router.get('/', asyncRoute(async (req: AuthenticatedRequest, res) => {
       aiActions: aiActions.count ?? 0,
     },
     today: todaysJobs.data ?? [],
+    attention: [
+      ...(leadRows.filter((lead: any) => lead.stage === 'new').slice(0, 10).map((lead: any) => ({ id: `lead:${lead.id}`, kind: 'lead', tone: 'indigo', title: 'New lead needs a response', description: 'Open the lead and make contact while the enquiry is fresh.', href: '/app/leads' }))),
+      ...((overdueInvoices.data ?? []).map((invoice: any) => ({ id: `invoice:${invoice.id}`, kind: 'invoice', tone: 'red', title: `Invoice #${invoice.invoice_number} is overdue`, description: `${invoice.customers?.display_name ?? 'Customer'} owes $${(Number(invoice.balance_due_cents || 0) / 100).toFixed(2)}.`, href: '/app/invoices' }))),
+      ...((unscheduledJobs.data ?? []).map((job: any) => ({ id: `job:${job.id}`, kind: 'job', tone: 'amber', title: `${job.title} needs scheduling`, description: job.customers?.display_name ?? 'Customer', href: `/app/jobs/${job.id}` }))),
+      ...((pendingApprovals.data ?? []).map((approval: any) => ({ id: `approval:${approval.id}`, kind: 'approval', tone: 'amber', title: `${approval.resource_type} needs approval`, description: approval.reason, href: '/app/approvals' }))),
+    ].slice(0, 20),
   });
 }));
 

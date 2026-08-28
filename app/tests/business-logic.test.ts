@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { calculateDocument, documentItems } from '../server/routes/operations';
+import { calculateDocument, canTransitionJob, documentItems } from '../server/routes/operations';
 import { readAal } from '../server/supabase';
 
 function token(payload: Record<string, unknown>) {
@@ -18,6 +18,15 @@ test('document totals calculate integer cents and GST on each line', () => {
 test('document item validation rejects negative prices and unsupported tax rates', () => {
   assert.equal(documentItems.safeParse([{ description: 'Bad', quantity: 1, unit_price_cents: -1, gst_rate: 0.1 }]).success, false);
   assert.equal(documentItems.safeParse([{ description: 'Bad', quantity: 1, unit_price_cents: 1, gst_rate: 0.2 }]).success, false);
+});
+
+test('job lifecycle permits real next steps and rejects false completion jumps', () => {
+  assert.equal(canTransitionJob('new', 'scheduled'), true);
+  assert.equal(canTransitionJob('scheduled', 'on_the_way'), true);
+  assert.equal(canTransitionJob('in_progress', 'completed'), true);
+  assert.equal(canTransitionJob('completed', 'paid'), false);
+  assert.equal(canTransitionJob('new', 'paid'), false);
+  assert.equal(canTransitionJob('paid', 'in_progress'), false);
 });
 
 test('AAL is read only from the signed-token payload shape', () => {
