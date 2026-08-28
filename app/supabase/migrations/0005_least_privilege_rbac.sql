@@ -1,4 +1,4 @@
--- Vantory least-privilege RBAC.
+-- Jobryn least-privilege RBAC.
 -- Supabase's authenticated REST API is a real security boundary, so RLS/grants must
 -- independently match the API permission model rather than relying on Express alone.
 

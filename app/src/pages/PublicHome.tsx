@@ -15,7 +15,7 @@ export default function PublicHome() {
   return <div className="min-h-screen bg-[#f8fafc] text-slate-950">
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-        <AppLink href="/" className="flex items-center gap-2 font-black tracking-tight"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-white">V</span><span className="text-lg">JOBRYN</span></AppLink>
+        <AppLink href="/" className="flex items-center gap-2 font-black tracking-tight"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-white">J</span><span className="text-lg">JOBRYN</span></AppLink>
         <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex"><a href="#product">Product</a><a href="#security">Security</a><AppLink href="/pricing">Pricing</AppLink></nav>
         <div className="flex items-center gap-2"><AppLink href="/login" className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">Log in</AppLink><AppLink href="/signup" className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Start free</AppLink></div>
       </div>

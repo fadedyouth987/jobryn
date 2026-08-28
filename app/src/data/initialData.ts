@@ -59,7 +59,7 @@ export const initialWorkspaces: Workspace[] = [
       {
         id: 'user-jack',
         name: 'Jack Bradley',
-        email: 'jack.bradley@jobryn.ai',
+        email: 'jack.bradley@jobryn.org',
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
         role: 'owner',
         status: 'active',
@@ -67,7 +67,7 @@ export const initialWorkspaces: Workspace[] = [
       {
         id: 'user-sarah',
         name: 'Sarah Jenkins',
-        email: 'sarah.j@jobryn.ai',
+        email: 'sarah.j@jobryn.org',
         avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
         role: 'approver',
         status: 'active',

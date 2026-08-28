@@ -9,7 +9,7 @@ run Jobryn's API, Stripe webhooks or authentication server.
 ## 1. Provision staging
 
 1. Create a managed PostgreSQL database or a private PostgreSQL service.
-2. Create a staging domain such as `staging.jobryn.com`.
+2. Create a staging domain such as `staging.jobryn.org`.
 3. Deploy `app/` with Node.js 22 or its Dockerfile.
 4. Copy `app/.env.example` into Hostinger environment settings. Never upload a
    populated `.env` file to GitHub.
@@ -52,7 +52,7 @@ or Stripe event rows.
 
 1. Store the Stripe secret and webhook signing secret only in Hostinger secrets.
 2. Create a new Stripe webhook endpoint for
-   `https://staging.jobryn.com/api/stripe/webhook`.
+   `https://staging.jobryn.org/api/stripe/webhook`.
 3. Configure the trusted Starter, Growth and Operator Price IDs server-side.
 4. Test checkout, portal, duplicate events, out-of-order subscription events,
    cancellation and failed-payment handling in Stripe test mode.

@@ -143,7 +143,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Layers className="w-4 h-4 text-white" />
           </div>
           <div className="flex items-center space-x-1.5">
-            <span className="font-extrabold text-base text-white tracking-tight">LAUNCHPAD</span>
+            <span className="font-extrabold text-base text-white tracking-tight">JOBRYN</span>
             <span className="text-[9px] font-extrabold bg-indigo-900/80 text-indigo-300 px-1.5 py-0.2 rounded border border-indigo-700/50">
               PRO
             </span>

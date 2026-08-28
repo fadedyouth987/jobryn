@@ -1,4 +1,4 @@
--- Vantory Core v0.1
+-- Jobryn Core v0.1 (historical filename and database identifiers retained for compatibility)
 -- Multi-tenant SaaS foundation: auth profiles, workspaces, RLS, campaigns, assets, credits, billing and audit.
 
 create extension if not exists pgcrypto;

@@ -57,7 +57,7 @@ export const FloatingMarketingWidget: React.FC<FloatingMarketingWidgetProps> = (
               <span className={`text-xs font-black tracking-wide uppercase flex items-center space-x-1 ${
                 isLight ? 'text-slate-900' : 'text-white'
               }`}>
-                <span>LAUNCHPAD SHOWCASE</span>
+                <span>JOBRYN SHOWCASE</span>
                 <span className={`text-[9px] border px-1.5 py-0.2 rounded font-medium ${
                   isLight ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-indigo-950 text-indigo-300 border-indigo-700/50'
                 }`}>
@@ -116,7 +116,7 @@ export const FloatingMarketingWidget: React.FC<FloatingMarketingWidgetProps> = (
             <div>
               <div className="inline-flex items-center space-x-1.5 text-indigo-600 text-[11px] font-bold uppercase tracking-wider">
                 <Zap className="w-3.5 h-3.5 text-amber-500" />
-                <span>WHAT LAUNCHPAD ACTUALLY DOES</span>
+                <span>WHAT JOBRYN ACTUALLY DOES</span>
               </div>
               <h3 className={`text-base font-extrabold mt-0.5 ${
                 isLight ? 'text-slate-900' : 'text-white'

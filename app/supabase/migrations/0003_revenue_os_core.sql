@@ -1,5 +1,5 @@
--- Vantory Revenue Operating System v1.0
--- Canonical operational schema. Vantory owns the record; providers synchronize into it.
+-- Jobryn Revenue Operating System v1.0
+-- Canonical operational schema. Jobryn owns the record; providers synchronize into it.
 
 create extension if not exists pgcrypto;
 create extension if not exists vector;

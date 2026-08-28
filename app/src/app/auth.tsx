@@ -27,13 +27,23 @@ type AuthState = {
 };
 
 const AuthContext = createContext<AuthState | null>(null);
-const WORKSPACE_KEY = 'vantory.active_workspace';
+const WORKSPACE_KEY = 'jobryn.active_workspace';
+const LEGACY_WORKSPACE_KEY = 'vantory.active_workspace';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
-  const [workspaceId, setWorkspaceIdState] = useState<string | null>(() => localStorage.getItem(WORKSPACE_KEY));
+  const [workspaceId, setWorkspaceIdState] = useState<string | null>(() => {
+    const current = localStorage.getItem(WORKSPACE_KEY);
+    if (current) return current;
+    const legacy = localStorage.getItem(LEGACY_WORKSPACE_KEY);
+    if (legacy) {
+      localStorage.setItem(WORKSPACE_KEY, legacy);
+      localStorage.removeItem(LEGACY_WORKSPACE_KEY);
+    }
+    return legacy;
+  });
   const [needsMfa, setNeedsMfa] = useState(false);
 
   const refreshMfa = async () => {
