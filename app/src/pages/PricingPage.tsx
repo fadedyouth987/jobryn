@@ -4,7 +4,7 @@ import { AppLink } from '../app/router';
 
 const plans = [
   { name:'Starter', key:'starter', price:'149', description:'Core CRM, lead capture, bookings and basic AI.', features:['CRM + customer history','Lead pipeline','Booking engine','Basic AI assistance','250 SMS allowance target'] },
-  { name:'Growth', key:'growth', price:'299', description:'Communication, automations and revenue campaigns.', featured:true, features:['Everything in Starter','Advanced automations','Revenue-linked campaigns','1,000 SMS allowance target','8 team members'] },
+  { name:'Growth', key:'growth', price:'299', description:'Communication, automations and revenue workflows.', featured:true, features:['Everything in Starter','Advanced automations','Customer follow-up workflows','1,000 SMS allowance target','8 team members'] },
   { name:'Operator', key:'operator', price:'599', description:'Full AI Operator and highest automation limits.', features:['Everything in Growth','Full Operator entitlement','Advanced AI actions','4,000 SMS allowance target','25 team members'] },
 ];
 

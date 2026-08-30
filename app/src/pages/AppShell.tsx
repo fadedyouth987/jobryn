@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  BarChart3, Bell, Bot, BriefcaseBusiness, CalendarDays, ChevronDown, CircleDollarSign,
+  BarChart3, Bell, Bot, Brain, BriefcaseBusiness, CalendarDays, ChevronDown, CircleDollarSign,
   ContactRound, CreditCard, FileCheck2, FileText, Home, Inbox, KeyRound, LibraryBig,
   LogOut, Menu, MessageSquareMore, Phone, ReceiptText, Settings, ShieldCheck,
   Sparkles, Users, Workflow, X, Star, PlugZap
@@ -16,6 +16,7 @@ import {
 } from './AppPages';
 import { CustomerDetailPage, JobDetailPage } from './OperationalDetailPages';
 import { SchedulePage } from './SchedulePage';
+import { BusinessBrainPage } from './BusinessBrainPage';
 
 type NavItem = [string, string, React.ComponentType<{ className?: string }>];
 type NavGroup = { label: string; items: NavItem[] };
@@ -23,7 +24,7 @@ type NavGroup = { label: string; items: NavItem[] };
 const groups: NavGroup[] = [
   { label:'', items:[['/app','Today',Home],['/app/inbox','Inbox',Inbox],['/app/customers','Customers',ContactRound],['/app/schedule','Schedule',CalendarDays],['/app/jobs','Jobs',FileCheck2],['/app/operator/phone','AI Receptionist',Phone]] },
   { label:'Money', items:[['/app/quotes','Quotes',FileText],['/app/invoices','Invoices',ReceiptText],['/app/payments','Payments',CircleDollarSign]] },
-  { label:'More', items:[['/app/leads','Leads',BriefcaseBusiness],['/app/command','Command Centre',Sparkles],['/app/automations','Automations',Workflow],['/app/reviews','Reviews',Star],['/app/analytics','Analytics',BarChart3],['/app/knowledge','Knowledge',LibraryBig],['/app/operator','Operator log',Bot],['/app/approvals','Approvals',ShieldCheck],['/app/integrations','Integrations',PlugZap],['/app/team','Team',Users],['/app/billing','Billing',CreditCard],['/app/settings','Settings',Settings]] },
+  { label:'More', items:[['/app/leads','Leads',BriefcaseBusiness],['/app/command','Command Centre',Sparkles],['/app/brain','AI Memory',Brain],['/app/automations','Automations',Workflow],['/app/reviews','Reviews',Star],['/app/analytics','Analytics',BarChart3],['/app/knowledge','Knowledge',LibraryBig],['/app/operator','Operator log',Bot],['/app/approvals','Approvals',ShieldCheck],['/app/integrations','Integrations',PlugZap],['/app/team','Team',Users],['/app/billing','Billing',CreditCard],['/app/settings','Settings',Settings]] },
 ];
 
 export default function AppShell() {
@@ -51,7 +52,7 @@ export default function AppShell() {
   },[auth.session,auth.workspaceId,path]);
   if(auth.loading||!auth.session||!auth.workspaceId||!subscriptionChecked)return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500">Loading secure workspace…</div>;
 
-  const restrictedForStaff=new Set(['/app/automations','/app/analytics','/app/approvals','/app/integrations','/app/team','/app/billing','/app/settings']);
+  const restrictedForStaff=new Set(['/app/brain','/app/automations','/app/analytics','/app/approvals','/app/integrations','/app/team','/app/billing','/app/settings']);
   const visibleGroups=auth.workspace?.role==='staff'?groups.map(group=>({...group,items:group.items.filter(([href])=>!restrictedForStaff.has(href))})):groups;
   const content = routePage(path);
   return <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -80,6 +81,7 @@ function routePage(path:string) {
   if(path==='/app/invoices')return <OperationsListPage kind="invoices"/>;
   if(path==='/app/payments')return <OperationsListPage kind="payments"/>;
   if(path==='/app/automations')return <AutomationsPage/>;
+  if(path==='/app/brain')return <BusinessBrainPage/>;
   if(path==='/app/reviews')return <ReviewsPage/>;
   if(path==='/app/analytics')return <AnalyticsPage/>;
   if(path==='/app/knowledge')return <KnowledgePage/>;

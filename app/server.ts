@@ -11,10 +11,10 @@ import intelligenceRouter from './server/routes/intelligence';
 import operatorRouter from './server/routes/operator';
 import teamRouter from './server/routes/team';
 import billingRouter, { stripeWebhookRouter } from './server/routes/billing';
-import legacyAiRouter from './server/routes/legacyAi';
 import communicationsRouter, { twilioWebhookRouter } from './server/routes/communications';
 import { twilioConfigured } from './server/providers/twilio';
 import receptionistRouter, { receptionistWebhookRouter } from './server/routes/receptionist';
+import businessBrainRouter from './server/routes/businessBrain';
 
 assertProductionSecrets();
 
@@ -51,6 +51,7 @@ app.get('/api/health', (_req, res) => {
     privilegedDatabaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
     stripeConfigured: Boolean(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET),
     aiConfigured: Boolean((env.GEMINI_API_KEY && env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY') || env.OPENAI_API_KEY),
+    businessBrainWorkerConfigured: Boolean(env.SUPABASE_SERVICE_ROLE_KEY && env.OPENAI_API_KEY),
     messagingConfigured: twilioConfigured(),
     timestamp: new Date().toISOString(),
   });
@@ -68,7 +69,7 @@ app.use('/api/team', teamRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/communications', communicationsRouter);
 app.use('/api/receptionist', receptionistRouter);
-app.use('/api', legacyAiRouter);
+app.use('/api/business-brain', businessBrainRouter);
 
 export function finalizeApp() {
   app.use('/api', notFound);
